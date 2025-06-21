@@ -23,7 +23,7 @@ Each domain entity (e.g. `articles/`, `comments/`, `users/`) looks like this:
 ```plaintext
 entities/
 ├── plugin.ts               # Unified entry point (controller + service + repo)
-├── schema.ts               # Drizzle ORM schema
+├── schema.ts               # Prisma ORM schema
 ├── model.ts                # TypeBox DTOs (request/response shapes)
 ├── interfaces/             # TypeScript types and interfaces
 │   └── article.interface.ts
@@ -42,7 +42,7 @@ Defines routes, handles logic, and interacts with the database, powered by [Elys
 
 ### 🧬 `entities.schema.ts`
 
-Database tables and relations using [Drizzle ORM](https://orm.drizzle.team).
+Database tables and relations using [Prisma ORM](https://www.prisma.io).
 
 ### 🧾 `entities.model.ts`
 
@@ -84,7 +84,7 @@ src/
 ├── core/                  # Core (app, db, env, core plugins)
 ├── shared/                # Shared constants, utils, types, plugins, etc.
 ├── index.ts               # Main entry point, mounts plugins
-drizzle/                   # Migrations, reset, seed
+prisma/                   # Migrations, reset, seed
 ```
 
 ### When to Use Bedstack (Stripped)
@@ -111,5 +111,5 @@ drizzle/                   # Migrations, reset, seed
 
 - [Bedstack Full Architecture](https://github.com/bedtime-coders/bedstack/blob/main/ARCHITECTURE.md)
 - [ElysiaJS Docs](https://elysiajs.com/docs)
-- [Drizzle ORM Docs](https://orm.drizzle.team/docs)
+- [Prisma ORM Docs](https://www.prisma.io/docs)
 - [TypeBox Docs](https://typebox.io/docs)

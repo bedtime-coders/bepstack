@@ -16,7 +16,7 @@ We use [Bun](https://bun.sh/) as our package manager and runtime. Please make su
    ```bash
    cp .env.example .env
    ```
-4. Run `bun db:push` to [push the database schema to the database](https://orm.drizzle.team/docs/drizzle-kit-push)
+4. Run `bun db:push` to [push the database schema to the database](https://www.prisma.io/docs/orm/prisma-migrate/workflows/prototyping-your-schema)
 5. (Optional) Run `bun db:seed` to seed the database
 6. Run `bun dev` to start the development server
 
