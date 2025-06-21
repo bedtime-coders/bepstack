@@ -2,7 +2,7 @@ import { and, count, desc, eq, inArray } from "drizzle-orm";
 import { Elysia, NotFoundError } from "elysia";
 import { StatusCodes } from "http-status-codes";
 import { omit, sift } from "radashi";
-import { db } from "@/core/db";
+import { db } from "@/core/drizzle";
 import { follows } from "@/profiles/profiles.schema";
 import { DEFAULT_LIMIT, DEFAULT_OFFSET } from "@/shared/constants";
 import { RealWorldError } from "@/shared/errors";

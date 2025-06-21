@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 import { StatusCodes } from "http-status-codes";
-import { db } from "@/core/db";
+import { db } from "@/core/drizzle";
 import { env } from "@/core/env";
 import { RealWorldError } from "@/shared/errors";
 import { users } from "@/users/users.schema";

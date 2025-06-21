@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 import { StatusCodes } from "http-status-codes";
-import { db } from "@/core/db";
+import { db } from "@/core/drizzle";
 import { RealWorldError } from "@/shared/errors";
 
 export const health = new Elysia({

@@ -1,7 +1,7 @@
 {
-	"name": "bedstack-stripped",
-	"title": "Bedstack (Stripped)",
-	"description": "⚡ Stripped version of Bedstack for rapid prototyping",
+	"name": "bepstack",
+	"title": "Bepstack",
+	"description": "Bepstack = Bun + Elysia + Prisma = ❤️",
 	"type": "module",
 	"scripts": {
 		"dev": "bun run --watch src/index.ts",

@@ -1,5 +1,5 @@
 import { Elysia, t } from "elysia";
-import { db } from "@/core/db";
+import { db } from "@/core/drizzle";
 
 export const tags = new Elysia({
 	tags: ["Tags"],
