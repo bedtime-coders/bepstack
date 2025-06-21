@@ -46,3 +46,5 @@ package-lock.json
 # Db files (we use code-first approach)
 *.sqlite
 *.db
+
+/generated/prisma

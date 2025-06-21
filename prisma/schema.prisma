@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Junction table for many-to-many relationship between articles and tags
+model ArticleTag {
+  articleId String   @map("article_id")
+  tagId     String   @map("tag_id")
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, tagId])
+  @@map("article_tags")
+}
+
+/// Articles published by users
+model Article {
+  id          String        @id @default(cuid())
+  slug        String        @unique
+  title       String
+  description String
+  body        String
+  authorId    String        @map("author_id")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  
+  // Relations
+  author      User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  tags        ArticleTag[]
+  comments    Comment[]
+  favorites   Favorite[]
+
+  @@index([authorId])
+  @@index([createdAt])
+  @@index([slug])
+  @@map("articles")
+}
+
+/// Comments on articles
+model Comment {
+  id         String   @id @default(cuid())
+  body       String
+  articleId  String   @map("article_id")
+  authorId   String   @map("author_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  article    Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  author     User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([articleId])
+  @@index([authorId])
+  @@index([createdAt])
+  @@map("comments")
+}
+
+/// User favorites for articles
+model Favorite {
+  userId    String   @map("user_id")
+  articleId String   @map("article_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  // Relations
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, articleId])
+  @@index([articleId])
+  @@index([userId])
+  @@map("favorites")
+}
+
+/// User follow relationships
+model Follow {
+  followerId  String   @map("follower_id")
+  followingId String   @map("following_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  
+  // Relations
+  follower    User     @relation("UserFollowers", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("UserFollowing", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId])
+  @@unique([followerId, followingId])
+  @@map("follows")
+}
+
+/// Tags for categorizing articles
+model Tag {
+  id          String        @id @default(cuid())
+  name        String        @unique
+  articleTags ArticleTag[]
+
+  @@index([name])
+  @@map("tags")
+}
+
+/// User accounts
+model User {
+  id        String      @id @default(cuid())
+  email     String      @unique
+  username  String      @unique
+  bio       String?
+  image     String?
+  password  String
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+  
+  // Relations
+  articles   Article[]
+  comments   Comment[]
+  favorites  Favorite[]
+  followers  Follow[]    @relation("UserFollowers")
+  following  Follow[]    @relation("UserFollowing")
+
+  @@map("users")
+}
