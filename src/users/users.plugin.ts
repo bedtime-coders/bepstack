@@ -73,7 +73,7 @@ export const usersPlugin = new Elysia({
 							password: await Bun.password.hash(user.password, {
 								algorithm:
 									env.NODE_ENV === "development" ? "bcrypt" : "argon2id",
-								cost: env.NODE_ENV === "development" ? 1 : undefined,
+								cost: env.NODE_ENV === "development" ? 10 : undefined,
 							}),
 						},
 					});
@@ -143,7 +143,7 @@ export const usersPlugin = new Elysia({
 								? await Bun.password.hash(user.password, {
 										algorithm:
 											env.NODE_ENV === "development" ? "bcrypt" : "argon2id",
-										cost: env.NODE_ENV === "development" ? 1 : undefined,
+										cost: env.NODE_ENV === "development" ? 10 : undefined,
 									})
 								: undefined,
 						})
