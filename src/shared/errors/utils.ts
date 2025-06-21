@@ -1,3 +1,4 @@
+import camelcase from "camelcase";
 import type { DrizzleQueryError } from "drizzle-orm/errors";
 import type { NotFoundError, ValidationError } from "elysia";
 import type { Prisma } from "@/core/db";
@@ -85,13 +86,16 @@ export function formatDrizzleError(error: DrizzleQueryError) {
 
 const DEFAULT_ENTITY_NAME = "database";
 
+const modelToEntityName = (model: string) => camelcase(model);
+
 const getEntityNameFromMeta = (
 	meta: Prisma.PrismaClientKnownRequestError["meta"],
 ): string => {
 	if (!meta) return DEFAULT_ENTITY_NAME;
 	if (meta.modelName && typeof meta.modelName === "string")
-		return meta.modelName;
-	if (meta.model && typeof meta.model === "string") return meta.model;
+		return modelToEntityName(meta.modelName);
+	if (meta.model && typeof meta.model === "string")
+		return modelToEntityName(meta.model);
 	return DEFAULT_ENTITY_NAME;
 };
 
