@@ -1,19 +1,18 @@
-import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 import { DrizzleQueryError } from "drizzle-orm/errors";
 import { type Elysia, NotFoundError, ValidationError } from "elysia";
 import { pick } from "radashi";
+import { Prisma } from "@/core/db";
 import { DEFAULT_ERROR_MESSAGE } from "@/shared/constants";
 import {
 	formatDbError,
 	formatDrizzleError,
 	formatNotFoundError,
 	formatValidationError,
-	isElysiaError,
 	RealWorldError,
 } from "@/shared/errors";
 
 export const errors = (app: Elysia) =>
-	app.onError(({ error, code, set }) => {
+	app.onError(({ error, set }) => {
 		// Manually thrown errors
 		if (error instanceof RealWorldError) {
 			set.status = error.status;
@@ -36,7 +35,7 @@ export const errors = (app: Elysia) =>
 		}
 
 		// prisma errors
-		if (error instanceof PrismaClientKnownRequestError) {
+		if (error instanceof Prisma.PrismaClientKnownRequestError) {
 			return formatDbError(error);
 		}
 

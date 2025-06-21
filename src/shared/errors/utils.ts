@@ -1,7 +1,8 @@
-import type { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 import type { DrizzleQueryError } from "drizzle-orm/errors";
 import type { NotFoundError, ValidationError } from "elysia";
+import type { Prisma } from "@/core/db";
 import { ConflictingFieldsError } from "./conflicting-fields";
+import { PrismaErrorCode } from "./prisma";
 
 // Defined temporarily until Elysia exports the type
 type ElysiaCustomStatusResponse = {
@@ -82,7 +83,27 @@ export function formatDrizzleError(error: DrizzleQueryError) {
 	};
 }
 
-export function formatDbError(error: PrismaClientKnownRequestError) {
+const DEFAULT_ENTITY_NAME = "database";
+
+const getEntityNameFromMeta = (
+	meta: Prisma.PrismaClientKnownRequestError["meta"],
+): string => {
+	if (!meta) return DEFAULT_ENTITY_NAME;
+	if (meta.modelName && typeof meta.modelName === "string")
+		return meta.modelName;
+	if (meta.model && typeof meta.model === "string") return meta.model;
+	return DEFAULT_ENTITY_NAME;
+};
+
+export function formatDbError(error: Prisma.PrismaClientKnownRequestError) {
+	const entity = getEntityNameFromMeta(error.meta);
+	if (error.code === PrismaErrorCode.RecordNotFound) {
+		return {
+			errors: {
+				[entity]: "not found",
+			},
+		};
+	}
 	console.error(error);
 	return {
 		errors: {
