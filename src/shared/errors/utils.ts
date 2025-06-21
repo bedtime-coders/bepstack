@@ -1,3 +1,4 @@
+import type { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 import type { DrizzleQueryError } from "drizzle-orm/errors";
 import type { NotFoundError, ValidationError } from "elysia";
 import { ConflictingFieldsError } from "./conflicting-fields";
@@ -72,7 +73,16 @@ export function formatNotFoundError(error: NotFoundError) {
 	};
 }
 
-export function formatDBError(error: DrizzleQueryError) {
+export function formatDrizzleError(error: DrizzleQueryError) {
+	console.error(error);
+	return {
+		errors: {
+			database: "error occurred",
+		},
+	};
+}
+
+export function formatDbError(error: PrismaClientKnownRequestError) {
 	console.error(error);
 	return {
 		errors: {

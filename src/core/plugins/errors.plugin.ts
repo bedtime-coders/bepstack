@@ -1,9 +1,11 @@
+import { PrismaClientKnownRequestError } from "@prisma/client/runtime/library";
 import { DrizzleQueryError } from "drizzle-orm/errors";
 import { type Elysia, NotFoundError, ValidationError } from "elysia";
 import { pick } from "radashi";
 import { DEFAULT_ERROR_MESSAGE } from "@/shared/constants";
 import {
-	formatDBError,
+	formatDbError,
+	formatDrizzleError,
 	formatNotFoundError,
 	formatValidationError,
 	isElysiaError,
@@ -28,21 +30,21 @@ export const errors = (app: Elysia) =>
 			return formatNotFoundError(error);
 		}
 
-		// db errors
+		// drizzle errors
 		if (error instanceof DrizzleQueryError) {
-			return formatDBError(error);
+			return formatDrizzleError(error);
 		}
 
-		// Generic error message
-		const reason = isElysiaError(error)
-			? error.response
-			: DEFAULT_ERROR_MESSAGE;
+		// prisma errors
+		if (error instanceof PrismaClientKnownRequestError) {
+			return formatDbError(error);
+		}
 
 		console.error(error);
 
 		return {
 			errors: {
-				[code.toString().toLowerCase()]: [reason],
+				unknown: [DEFAULT_ERROR_MESSAGE],
 			},
 		};
 	});

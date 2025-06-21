@@ -1,7 +1,9 @@
 import { eq } from "drizzle-orm";
 import { Elysia, NotFoundError } from "elysia";
 import { StatusCodes } from "http-status-codes";
-import { db } from "@/core/drizzle";
+import { db } from "@/core/db";
+import { db as drizzle } from "@/core/drizzle";
+import { env } from "@/core/plugins";
 import { assertNoConflicts, RealWorldError } from "@/shared/errors";
 import { auth } from "@/shared/plugins";
 import { toResponse } from "./mappers";
@@ -13,18 +15,24 @@ export const usersPlugin = new Elysia({
 })
 	.use(auth)
 	.use(usersModel)
+	.use(env)
 	.group("/users", (app) =>
 		app
 			.post(
 				"/login",
-				async ({ body: { user }, auth: { sign } }) => {
-					const foundUser = await db.query.users.findFirst({
-						where: eq(users.email, user.email),
+				async ({ body: { user }, auth: { sign }, env }) => {
+					const foundUser = await db.user.findFirstOrThrow({
+						where: {
+							email: user.email,
+						},
 					});
-					if (!foundUser) {
-						throw new NotFoundError("user");
-					}
-					if (!(await Bun.password.verify(user.password, foundUser.password))) {
+					if (
+						!(await Bun.password.verify(
+							user.password,
+							foundUser.password,
+							env.NODE_ENV === "development" ? "bcrypt" : "argon2id",
+						))
+					) {
 						throw new RealWorldError(StatusCodes.UNAUTHORIZED, {
 							user: ["invalid credentials"],
 						});
@@ -43,7 +51,7 @@ export const usersPlugin = new Elysia({
 			)
 			.post(
 				"/",
-				async ({ body: { user }, auth: { sign } }) => {
+				async ({ body: { user }, auth: { sign }, env }) => {
 					await assertNoConflicts(
 						"user",
 						{
@@ -51,20 +59,24 @@ export const usersPlugin = new Elysia({
 							username: user.username,
 						},
 						async (key, value) => {
-							const existing = await db.query.users.findFirst({
-								where: eq(users[key], value),
+							const existing = await db.user.findFirst({
+								where: {
+									[key]: value,
+								},
 							});
 							return Boolean(existing);
 						},
 					);
-					const [createdUser] = await db
-						.insert(users)
-						.values({
+					const createdUser = await db.user.create({
+						data: {
 							...user,
-							password: await Bun.password.hash(user.password),
-						})
-						.onConflictDoNothing()
-						.returning();
+							password: await Bun.password.hash(user.password, {
+								algorithm:
+									env.NODE_ENV === "development" ? "bcrypt" : "argon2id",
+								cost: env.NODE_ENV === "development" ? 1 : undefined,
+							}),
+						},
+					});
 					if (!createdUser) {
 						throw new RealWorldError(StatusCodes.INTERNAL_SERVER_ERROR, {
 							user: ["failed to create"],
@@ -88,7 +100,7 @@ export const usersPlugin = new Elysia({
 			.get(
 				"/",
 				async ({ auth: { sign, jwtPayload } }) => {
-					const user = await db.query.users.findFirst({
+					const user = await drizzle.query.users.findFirst({
 						where: eq(users.id, jwtPayload.uid),
 					});
 					if (!user) {
@@ -109,7 +121,7 @@ export const usersPlugin = new Elysia({
 			)
 			.put(
 				"/",
-				async ({ body: { user }, auth: { sign, jwtPayload } }) => {
+				async ({ body: { user }, auth: { sign, jwtPayload }, env }) => {
 					await assertNoConflicts(
 						"user",
 						{
@@ -117,18 +129,22 @@ export const usersPlugin = new Elysia({
 							username: user.username,
 						},
 						async (key, value) => {
-							const existing = await db.query.users.findFirst({
+							const existing = await drizzle.query.users.findFirst({
 								where: eq(users[key], value),
 							});
 							return Boolean(existing && existing.id !== jwtPayload.uid);
 						},
 					);
-					const [updatedUser] = await db
+					const [updatedUser] = await drizzle
 						.update(users)
 						.set({
 							...user,
 							password: user?.password
-								? await Bun.password.hash(user.password)
+								? await Bun.password.hash(user.password, {
+										algorithm:
+											env.NODE_ENV === "development" ? "bcrypt" : "argon2id",
+										cost: env.NODE_ENV === "development" ? 1 : undefined,
+									})
 								: undefined,
 						})
 						.where(eq(users.id, jwtPayload.uid))
