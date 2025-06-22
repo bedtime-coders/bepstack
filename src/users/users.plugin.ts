@@ -1,18 +1,13 @@
-import { eq } from "drizzle-orm";
-import { Elysia, NotFoundError } from "elysia";
+import { Elysia } from "elysia";
 import { StatusCodes } from "http-status-codes";
 import { db } from "@/core/db";
-import { db as drizzle } from "@/core/drizzle";
 import { env } from "@/core/plugins";
 import { assertNoConflicts, RealWorldError } from "@/shared/errors";
 import { auth } from "@/shared/plugins";
 import { toResponse } from "./mappers";
 import { usersModel } from "./users.model";
-import { users } from "./users.schema";
 
-export const usersPlugin = new Elysia({
-	tags: ["Auth"],
-})
+export const usersPlugin = new Elysia({ tags: ["Auth"] })
 	.use(auth)
 	.use(usersModel)
 	.use(env)
@@ -22,9 +17,7 @@ export const usersPlugin = new Elysia({
 				"/login",
 				async ({ body: { user }, auth: { sign }, env }) => {
 					const foundUser = await db.user.findFirstOrThrow({
-						where: {
-							email: user.email,
-						},
+						where: { email: user.email },
 					});
 					if (
 						!(await Bun.password.verify(
@@ -60,9 +53,7 @@ export const usersPlugin = new Elysia({
 						},
 						async (key, value) => {
 							const existing = await db.user.findFirst({
-								where: {
-									[key]: value,
-								},
+								where: { [key]: value },
 							});
 							return Boolean(existing);
 						},
@@ -99,13 +90,10 @@ export const usersPlugin = new Elysia({
 		app
 			.get(
 				"/",
-				async ({ auth: { sign, jwtPayload } }) => {
-					const user = await drizzle.query.users.findFirst({
-						where: eq(users.id, jwtPayload.uid),
+				async ({ auth: { sign, currentUserId } }) => {
+					const user = await db.user.findFirstOrThrow({
+						where: { id: currentUserId },
 					});
-					if (!user) {
-						throw new NotFoundError("user");
-					}
 					return toResponse(user, sign);
 				},
 				{
@@ -121,7 +109,7 @@ export const usersPlugin = new Elysia({
 			)
 			.put(
 				"/",
-				async ({ body: { user }, auth: { sign, jwtPayload }, env }) => {
+				async ({ body: { user }, auth: { sign, currentUserId }, env }) => {
 					await assertNoConflicts(
 						"user",
 						{
@@ -129,15 +117,15 @@ export const usersPlugin = new Elysia({
 							username: user.username,
 						},
 						async (key, value) => {
-							const existing = await drizzle.query.users.findFirst({
-								where: eq(users[key], value),
+							const existing = await db.user.findFirst({
+								where: { [key]: value },
 							});
-							return Boolean(existing && existing.id !== jwtPayload.uid);
+							return Boolean(existing && existing.id !== currentUserId);
 						},
 					);
-					const [updatedUser] = await drizzle
-						.update(users)
-						.set({
+					const updatedUser = await db.user.update({
+						where: { id: currentUserId },
+						data: {
 							...user,
 							password: user?.password
 								? await Bun.password.hash(user.password, {
@@ -146,15 +134,8 @@ export const usersPlugin = new Elysia({
 										cost: env.NODE_ENV === "development" ? 10 : undefined,
 									})
 								: undefined,
-						})
-						.where(eq(users.id, jwtPayload.uid))
-						.returning();
-
-					if (!updatedUser) {
-						throw new RealWorldError(StatusCodes.INTERNAL_SERVER_ERROR, {
-							user: ["failed to update"],
-						});
-					}
+						},
+					});
 					return toResponse(updatedUser, sign);
 				},
 				{

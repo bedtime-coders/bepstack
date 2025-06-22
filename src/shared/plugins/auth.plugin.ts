@@ -39,6 +39,7 @@ export const auth = new Elysia()
 						iat: Math.floor(Date.now() / 1000),
 					})) satisfies SignFn,
 				jwtPayload: jwtPayload || null,
+				currentUserId: jwtPayload ? jwtPayload.uid : null,
 			},
 		};
 	})
@@ -69,7 +70,9 @@ export const auth = new Elysia()
 					});
 				}
 
-				return { auth: { ...auth, jwtPayload } };
+				const currentUserId = jwtPayload.uid;
+
+				return { auth: { ...auth, jwtPayload, currentUserId } };
 			},
 		},
 	});
