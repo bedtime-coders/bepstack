@@ -1,5 +1,5 @@
-import type { InferSelectModel } from "drizzle-orm";
-import type { users } from "src/users/users.schema";
+import type { User } from "@prisma/client";
+import { pick } from "radashi";
 
 /**
  * Map a user to a response
@@ -7,16 +7,8 @@ import type { users } from "src/users/users.schema";
  * @param following Whether the user is following the current user
  * @returns The mapped user
  */
-export const toResponse = (
-	user: InferSelectModel<typeof users>,
-	following: boolean,
-) => {
+export const toResponse = (user: User, following: boolean) => {
 	return {
-		profile: {
-			username: user.username,
-			bio: user.bio,
-			image: user.image,
-			following,
-		},
+		profile: { ...pick(user, ["username", "bio", "image"]), following },
 	};
 };
