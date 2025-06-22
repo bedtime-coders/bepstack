@@ -8,17 +8,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// Junction table for many-to-many relationship between articles and tags
-model ArticleTag {
-  articleId String   @map("article_id")
-  tagId     String   @map("tag_id")
-  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
-
-  @@id([articleId, tagId])
-  @@map("article_tags")
-}
-
 /// Articles published by users
 model Article {
   id          String        @id @default(cuid())
@@ -32,7 +21,7 @@ model Article {
   
   // Relations
   author      User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  tags        ArticleTag[]
+  tags        Tag[]
   comments    Comment[]
   favorites   Favorite[]
 
@@ -97,7 +86,7 @@ model Follow {
 model Tag {
   id          String        @id @default(cuid())
   name        String        @unique
-  articleTags ArticleTag[]
+  articles    Article[]
 
   @@index([name])
   @@map("tags")

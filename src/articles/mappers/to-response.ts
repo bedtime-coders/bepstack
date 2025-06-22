@@ -4,6 +4,7 @@ import { follows } from "@/profiles/profiles.schema";
 import type { tags } from "@/tags/tags.schema";
 import type { users } from "@/users/users.schema";
 import { type articles, favorites } from "../articles.schema";
+import type { EnrichedArticle } from "../interfaces";
 
 /**
  * Map an article to a response
@@ -12,13 +13,8 @@ import { type articles, favorites } from "../articles.schema";
  * @returns The mapped article
  */
 export async function toResponse(
-	article: InferSelectModel<typeof articles> & {
-		author: InferSelectModel<typeof users>;
-		tags: Array<{
-			tag: InferSelectModel<typeof tags>;
-		}>;
-	},
-	currentUserId?: string,
+	article: EnrichedArticle,
+	currentUserId?: string | null,
 ): Promise<{
 	article: {
 		slug: string;
@@ -78,7 +74,7 @@ export async function toResponse(
 			description: article.description,
 			body: article.body,
 			tagList: article.tags
-				.map(({ tag }) => tag.name)
+				.map((t) => t.name)
 				.sort((a, b) => a.localeCompare(b)),
 			createdAt: article.createdAt.toISOString(),
 			updatedAt: article.updatedAt.toISOString(),

@@ -1,17 +1,11 @@
-import { and, count, desc, eq, inArray } from "drizzle-orm";
-import { Elysia, NotFoundError } from "elysia";
+import { Elysia, t } from "elysia";
 import { StatusCodes } from "http-status-codes";
-import { omit, sift } from "radashi";
-import { db } from "@/core/drizzle";
-import { follows } from "@/profiles/profiles.schema";
+import { db } from "@/core/db";
 import { DEFAULT_LIMIT, DEFAULT_OFFSET } from "@/shared/constants";
 import { RealWorldError } from "@/shared/errors";
 import { auth } from "@/shared/plugins";
 import { slugify } from "@/shared/utils";
-import { articleTags, tags } from "@/tags/tags.schema";
-import { users } from "@/users/users.schema";
 import { ArticleQuery, articlesModel, FeedQuery } from "./articles.model";
-import { articles, favorites } from "./articles.schema";
 import { toArticlesResponse, toResponse } from "./mappers";
 
 export const articlesPlugin = new Elysia({
@@ -31,21 +25,14 @@ export const articlesPlugin = new Elysia({
 						limit = DEFAULT_LIMIT,
 						offset = DEFAULT_OFFSET,
 					},
-					auth: { jwtPayload },
+					auth: { currentUserId },
 				}) => {
-					const currentUserId = jwtPayload?.uid;
-
-					// Preload filter IDs using relational API
 					const [authorUser, favoritedUser] = await Promise.all([
 						authorUsername
-							? db.query.users.findFirst({
-									where: eq(users.username, authorUsername),
-								})
+							? db.user.findFirst({ where: { username: authorUsername } })
 							: undefined,
 						favoritedByUsername
-							? db.query.users.findFirst({
-									where: eq(users.username, favoritedByUsername),
-								})
+							? db.user.findFirst({ where: { username: favoritedByUsername } })
 							: undefined,
 					]);
 
@@ -56,83 +43,82 @@ export const articlesPlugin = new Elysia({
 						return toArticlesResponse([]);
 					}
 
-					// Step 1: Fetch article IDs using a relational-aware filter
-					const filteredArticleIds = await db
-						.select({ id: articles.id })
-						.from(articles)
-						.leftJoin(articleTags, eq(articleTags.articleId, articles.id))
-						.leftJoin(tags, eq(tags.id, articleTags.tagId))
-						.leftJoin(favorites, eq(favorites.articleId, articles.id))
-						.where(
-							and(
-								authorUser ? eq(articles.authorId, authorUser.id) : undefined,
-								favoritedUser
-									? eq(favorites.userId, favoritedUser.id)
-									: undefined,
-								tag ? eq(tags.name, tag) : undefined,
-							),
-						)
-						.groupBy(articles.id)
-						.orderBy(desc(articles.createdAt))
-						.limit(limit)
-						.offset(offset);
-
-					const articleIds = filteredArticleIds.map((a) => a.id);
-					if (articleIds.length === 0) return toArticlesResponse([]);
-
-					// Step 2: Use relational API to fetch articles with nested joins
-					const articlesWithNestedData = await db.query.articles.findMany({
-						where: inArray(articles.id, articleIds),
-						with: {
-							author: true,
-							tags: {
-								with: {
-									tag: true,
+					const articles = await db.article.findMany({
+						where: {
+							...(authorUser && {
+								authorId: authorUser.id,
+							}),
+							...(favoritedUser && {
+								favorites: {
+									some: {
+										userId: favoritedUser.id,
+									},
 								},
-							},
+							}),
+							...(tag && {
+								tags: {
+									some: {
+										name: tag,
+									},
+								},
+							}),
+						},
+						orderBy: {
+							createdAt: "desc",
+						},
+						skip: offset,
+						take: limit,
+						include: {
+							author: true,
+							tags: true,
 						},
 					});
 
-					const articlesWithData = articlesWithNestedData.map((article) => ({
-						...omit(article, ["authorId"]),
-						author: article.author,
-						tags: article.tags.map((t) => t.tag.name),
-					}));
+					if (articles.length === 0) return toArticlesResponse([]);
+					if (!currentUserId) {
+						return toArticlesResponse(articles);
+					}
 
-					const authorIds = articlesWithData.map((a) => a.author.id);
+					const articleIds = articles.map((a) => a.id);
+					const authorIds = articles.map((a) => a.author.id);
 
 					// Step 3: Load extras (favorited, favorites count, following) - batched
 					const [favoritesCounts, userFavorites, followStatus] =
 						await Promise.all([
-							db
-								.select({
-									articleId: favorites.articleId,
-									count: count().as("count"),
-								})
-								.from(favorites)
-								.where(inArray(favorites.articleId, articleIds))
-								.groupBy(favorites.articleId),
-							currentUserId
-								? db.query.favorites.findMany({
-										columns: { articleId: true },
-										where: and(
-											eq(favorites.userId, currentUserId),
-											inArray(favorites.articleId, articleIds),
-										),
-									})
-								: [],
-							currentUserId
-								? db.query.follows.findMany({
-										columns: { followingId: true },
-										where: and(
-											eq(follows.followerId, currentUserId),
-											inArray(follows.followingId, authorIds),
-										),
-									})
-								: [],
+							db.favorite.groupBy({
+								by: ["articleId"],
+								where: {
+									articleId: {
+										in: articleIds,
+									},
+								},
+								_count: true,
+							}),
+							db.favorite.findMany({
+								where: {
+									userId: currentUserId,
+									articleId: {
+										in: articleIds,
+									},
+								},
+								select: {
+									articleId: true,
+								},
+							}),
+							db.follow.findMany({
+								where: {
+									followerId: currentUserId,
+									followingId: {
+										in: authorIds,
+									},
+								},
+								select: {
+									followingId: true,
+								},
+							}),
 						]);
 
-					return toArticlesResponse(articlesWithData, {
+					return toArticlesResponse(articles, {
 						userFavorites,
 						followStatus,
 						favoritesCounts,
@@ -150,24 +136,17 @@ export const articlesPlugin = new Elysia({
 			)
 			.get(
 				"/:slug",
-				async ({ params: { slug }, auth: { jwtPayload } }) => {
-					const articleWithData = await db.query.articles.findFirst({
-						where: eq(articles.slug, slug),
-						with: {
+				async ({ params: { slug }, auth: { currentUserId } }) => {
+					const enrichedArticle = await db.article.findFirstOrThrow({
+						where: {
+							slug,
+						},
+						include: {
 							author: true,
-							tags: {
-								with: {
-									tag: true,
-								},
-							},
+							tags: true,
 						},
 					});
-
-					if (!articleWithData) {
-						throw new NotFoundError("article");
-					}
-
-					return toResponse(articleWithData, jwtPayload?.uid);
+					return toResponse(enrichedArticle, currentUserId);
 				},
 				{
 					detail: {
@@ -189,80 +168,75 @@ export const articlesPlugin = new Elysia({
 				"/feed",
 				async ({
 					query: { limit = DEFAULT_LIMIT, offset = DEFAULT_OFFSET },
-					auth: { jwtPayload },
+					auth: { currentUserId },
 				}) => {
-					const currentUserId = jwtPayload.uid;
-
 					// Step 1: Get followed user IDs
-					const followed = await db
-						.select({ followingId: follows.followingId })
-						.from(follows)
-						.where(eq(follows.followerId, currentUserId));
+					const followed = await db.follow.findMany({
+						where: {
+							followerId: currentUserId,
+						},
+						select: {
+							followingId: true,
+						},
+					});
 
 					const followedIds = followed.map((f) => f.followingId);
 					if (followedIds.length === 0) return toArticlesResponse([]);
 
-					// Step 2: Get article IDs from followed authors
-					const articleIdsResult = await db
-						.select({ id: articles.id })
-						.from(articles)
-						.where(inArray(articles.authorId, followedIds))
-						.orderBy(desc(articles.createdAt))
-						.limit(limit)
-						.offset(offset);
-
-					const articleIds = articleIdsResult.map((a) => a.id);
-					if (articleIds.length === 0) return toArticlesResponse([]);
-
-					// Step 3: Get full article data with author and tags
-					const articlesWithNestedData = await db.query.articles.findMany({
-						where: inArray(articles.id, articleIds),
-						with: {
+					// Step 2: Get articles from followed authors
+					const articles = await db.article.findMany({
+						where: {
+							authorId: { in: followedIds },
+						},
+						orderBy: { createdAt: "desc" },
+						skip: offset,
+						take: limit,
+						include: {
 							author: true,
-							tags: {
-								with: {
-									tag: true,
-								},
-							},
+							tags: true,
 						},
 					});
+					if (articles.length === 0) return toArticlesResponse([]);
 
-					const articlesWithData = articlesWithNestedData.map((article) => ({
-						...omit(article, ["authorId"]),
-						author: article.author,
-						tags: article.tags.map((t) => t.tag.name),
-					}));
+					const articleIds = articles.map((a) => a.id);
+					const authorIds = articles.map((a) => a.author.id);
 
-					const authorIds = articlesWithData.map((a) => a.author.id);
-
-					// Step 4: Get favorites count, user favorited, follow status
+					// Step 3: Get favorites count, user favorited, follow status
 					const [favoritesCounts, userFavorites, followStatus] =
 						await Promise.all([
-							db
-								.select({
-									articleId: favorites.articleId,
-									count: count().as("count"),
-								})
-								.from(favorites)
-								.where(inArray(favorites.articleId, articleIds))
-								.groupBy(favorites.articleId),
-							db.query.favorites.findMany({
-								columns: { articleId: true },
-								where: and(
-									eq(favorites.userId, currentUserId),
-									inArray(favorites.articleId, articleIds),
-								),
+							db.favorite.groupBy({
+								by: ["articleId"],
+								where: {
+									articleId: {
+										in: articleIds,
+									},
+								},
+								_count: true,
 							}),
-							db.query.follows.findMany({
-								columns: { followingId: true },
-								where: and(
-									eq(follows.followerId, currentUserId),
-									inArray(follows.followingId, authorIds),
-								),
+							db.favorite.findMany({
+								where: {
+									userId: currentUserId,
+									articleId: {
+										in: articleIds,
+									},
+								},
+								select: {
+									articleId: true,
+								},
+							}),
+							db.follow.findMany({
+								where: {
+									followerId: currentUserId,
+									followingId: {
+										in: authorIds,
+									},
+								},
+								select: {
+									followingId: true,
+								},
 							}),
 						]);
-
-					return toArticlesResponse(articlesWithData, {
+					return toArticlesResponse(articles, {
 						userFavorites,
 						followStatus,
 						favoritesCounts,
@@ -280,97 +254,42 @@ export const articlesPlugin = new Elysia({
 			)
 			.post(
 				"/",
-				async ({ body: { article }, auth: { jwtPayload } }) => {
+				async ({ body: { article }, auth: { currentUserId } }) => {
 					const slug = slugify(article.title);
 
-					// Create article
-					const [createdArticle] = await db
-						.insert(articles)
-						.values({
+					// Upsert tags
+					const tagList = article.tagList ?? [];
+					const tags = await Promise.all(
+						tagList.map(async (name) =>
+							db.tag.upsert({
+								where: { name },
+								update: {},
+								create: { name },
+							}),
+						),
+					);
+
+					const createdArticle = await db.article.create({
+						data: {
 							slug,
 							title: article.title,
 							description: article.description,
 							body: article.body,
-							authorId: jwtPayload.uid,
-						})
-						.returning();
-
-					if (!createdArticle) {
-						throw new RealWorldError(StatusCodes.INTERNAL_SERVER_ERROR, {
-							article: ["failed to create"],
-						});
-					}
-
-					// Handle tags
-					if (article.tagList && article.tagList.length > 0) {
-						// Create or get existing tags
-						const tagPromises = article.tagList.map(async (tagName) => {
-							try {
-								const existingTag = await db.query.tags.findFirst({
-									where: eq(tags.name, tagName),
-								});
-								if (existingTag) {
-									return existingTag;
-								}
-
-								const [newTag] = await db
-									.insert(tags)
-									.values({ name: tagName })
-									.returning();
-
-								if (!newTag) {
-									console.error(
-										"Unexpected error: Could not create tag",
-										tagName,
-									);
-									return null;
-								}
-								return newTag;
-							} catch (error) {
-								console.error(`Failed to create tag "${tagName}":`, error);
-								return null;
-							}
-						});
-
-						const createdTags = sift(await Promise.all(tagPromises));
-
-						await db.insert(articleTags).values(
-							createdTags.map((tag) => ({
-								articleId: createdArticle.id,
-								tagId: tag.id,
-							})),
-						);
-					}
-
-					// Get article with author and tags
-					const articleWithData = await db.query.articles.findFirst({
-						where: eq(articles.id, createdArticle.id),
-						with: {
-							author: true,
+							authorId: currentUserId,
 							tags: {
-								with: {
-									tag: {
-										columns: {
-											id: true,
-											name: true,
-										},
-									},
-								},
+								connectOrCreate: tags.map((tag) => ({
+									where: { id: tag.id },
+									create: { name: tag.name },
+								})),
 							},
+						},
+						include: {
+							author: true,
+							tags: true,
 						},
 					});
 
-					if (!articleWithData) {
-						throw new NotFoundError("article");
-					}
-
-					return toResponse(
-						{
-							...articleWithData,
-							tags: articleWithData.tags,
-						},
-						jwtPayload.uid,
-					);
+					return toResponse(createdArticle, currentUserId);
 				},
 				{
 					detail: {
@@ -386,112 +305,43 @@ export const articlesPlugin = new Elysia({
 				async ({
 					params: { slug },
 					body: { article },
-					auth: { jwtPayload },
+					auth: { currentUserId },
 				}) => {
-					// Check article exists and user owns it
-					const existingArticle = await db.query.articles.findFirst({
-						where: eq(articles.slug, slug),
+					const existingArticle = await db.article.findFirstOrThrow({
+						where: { slug },
 					});
 
-					if (!existingArticle) {
-						throw new NotFoundError("article");
-					}
-
-					if (existingArticle.authorId !== jwtPayload.uid) {
+					if (existingArticle.authorId !== currentUserId) {
 						throw new RealWorldError(StatusCodes.FORBIDDEN, {
 							article: ["you can only update your own articles"],
 						});
 					}
 
-					// Generate new slug if title changed
-					let newSlug = existingArticle.slug;
-					if (article.title && article.title !== existingArticle.title) {
-						newSlug = slugify(article.title);
-					}
+					const newSlug =
+						article.title && article.title !== existingArticle.title
+							? slugify(article.title)
+							: existingArticle.slug;
 
-					// Update article
-
-					const [updatedArticle] = await db
-						.update(articles)
-						.set({
+					const updatedArticle = await db.article.update({
+						where: { id: existingArticle.id },
+						data: {
 							...article,
 							slug: newSlug,
-						})
-						.where(eq(articles.id, existingArticle.id))
-						.returning();
-
-					if (!updatedArticle) {
-						throw new RealWorldError(StatusCodes.INTERNAL_SERVER_ERROR, {
-							article: ["failed to update"],
-						});
-					}
-
-					// Handle tag updates
-					if (article.tagList !== undefined) {
-						// Remove existing tags
-						await db
-							.delete(articleTags)
-							.where(eq(articleTags.articleId, existingArticle.id));
-
-						// Add new tags
-						if (article.tagList.length > 0) {
-							const tagPromises = article.tagList.map(async (tagName) => {
-								try {
-									const existingTag = await db.query.tags.findFirst({
-										where: eq(tags.name, tagName),
-									});
-									if (existingTag) {
-										return existingTag;
-									}
-
-									const [newTag] = await db
-										.insert(tags)
-										.values({ name: tagName })
-										.returning();
-
-									if (!newTag) {
-										console.error(
-											"Unexpected error: Could not create tag",
-											tagName,
-										);
-										return null;
-									}
-									return newTag;
-								} catch (error) {
-									console.error(`Failed to create tag "${tagName}":`, error);
-									return null;
-								}
-							});
-
-							const createdTags = sift(await Promise.all(tagPromises));
-
-							await db.insert(articleTags).values(
-								createdTags.map((tag) => ({
-									articleId: existingArticle.id,
-									tagId: tag.id,
-								})),
-							);
-						}
-					}
-
-					// Get updated article with author and tags
-					const articleWithData = await db.query.articles.findFirst({
-						where: eq(articles.id, updatedArticle.id),
-						with: {
-							author: true,
-							tags: {
-								with: {
-									tag: true,
+							...(article.tagList && {
+								tags: {
+									connectOrCreate: article.tagList.map((name) => ({
+										where: { name },
+										create: { name },
+									})),
 								},
-							},
+							}),
+						},
+						include: {
+							author: true,
+							tags: true,
 						},
 					});
-
-					if (!articleWithData) {
-						throw new NotFoundError("article");
-					}
-
-					return toResponse(articleWithData, jwtPayload.uid);
+					return toResponse(updatedArticle, currentUserId);
 				},
 				{
 					detail: {
@@ -505,31 +355,30 @@ export const articlesPlugin = new Elysia({
 			)
 			.delete(
 				"/:slug",
-				async ({ params: { slug }, auth: { jwtPayload } }) => {
-					// Check article exists and user owns it
-					const existingArticle = await db.query.articles.findFirst({
-						where: eq(articles.slug, slug),
+				async ({ params: { slug }, auth: { currentUserId }, set }) => {
+					const existingArticle = await db.article.findFirstOrThrow({
+						where: { slug },
 					});
 
-					if (!existingArticle) {
-						throw new NotFoundError("article");
-					}
-
-					if (existingArticle.authorId !== jwtPayload.uid) {
+					if (existingArticle.authorId !== currentUserId) {
 						throw new RealWorldError(StatusCodes.FORBIDDEN, {
 							article: ["you can only delete your own articles"],
 						});
 					}
 
-					// Delete article (cascade will handle related records)
-					await db.delete(articles).where(eq(articles.id, existingArticle.id));
+					await db.article.delete({
+						where: { id: existingArticle.id },
+					});
 
-					return new Response(null, { status: StatusCodes.NO_CONTENT });
+					set.status = StatusCodes.NO_CONTENT;
 				},
 				{
 					detail: {
 						summary: "Delete Article",
 					},
+					response: t.Void({
+						description: "No content",
+					}),
 				},
 			)
 			.guard({
@@ -541,69 +390,37 @@ export const articlesPlugin = new Elysia({
 			})
 			.post(
 				"/:slug/favorite",
-				async ({ params: { slug }, auth: { jwtPayload } }) => {
+				async ({ params: { slug }, auth: { currentUserId } }) => {
 					// Verify article exists
-					const existingArticle = await db.query.articles.findFirst({
-						where: eq(articles.slug, slug),
-					});
-
-					if (!existingArticle) {
-						throw new NotFoundError("article");
-					}
-
-					// Check if already favorited
-					const existingFavorite = await db.query.favorites.findFirst({
-						where: and(
-							eq(favorites.userId, jwtPayload.uid),
-							eq(favorites.articleId, existingArticle.id),
-						),
-					});
-
-					if (existingFavorite) {
-						// Already favorited, return the article as-is
-						const articleWithData = await db.query.articles.findFirst({
-							where: eq(articles.id, existingArticle.id),
-							with: {
-								author: true,
-								tags: {
-									with: {
-										tag: true,
-									},
-								},
-							},
-						});
-
-						if (!articleWithData) {
-							throw new NotFoundError("article");
-						}
-
-						return toResponse(articleWithData, jwtPayload.uid);
-					}
-
-					// Add to favorites
-					await db.insert(favorites).values({
-						userId: jwtPayload.uid,
-						articleId: existingArticle.id,
-					});
-
-					// Get article with author and tags
-					const articleWithData = await db.query.articles.findFirst({
-						where: eq(articles.id, existingArticle.id),
-						with: {
+					const existingArticle = await db.article.findFirstOrThrow({
+						where: { slug },
+						include: {
 							author: true,
-							tags: {
-								with: {
-									tag: true,
-								},
-							},
+							tags: true,
 						},
 					});
 
-					if (!articleWithData) {
-						throw new NotFoundError("article");
+					if (existingArticle.authorId !== currentUserId) {
+						throw new RealWorldError(StatusCodes.FORBIDDEN, {
+							article: ["you can only favorite your own articles"],
+						});
 					}
 
-					return toResponse(articleWithData, jwtPayload.uid);
+					await db.favorite.upsert({
+						where: {
+							userId_articleId: {
+								userId: currentUserId,
+								articleId: existingArticle.id,
+							},
+						},
+						update: {},
+						create: {
+							userId: currentUserId,
+							articleId: existingArticle.id,
+						},
+					});
+
+					return toResponse(existingArticle, currentUserId);
 				},
 				{
 					detail: {
@@ -615,44 +432,32 @@ export const articlesPlugin = new Elysia({
 			)
 			.delete(
 				"/:slug/favorite",
-				async ({ params: { slug }, auth: { jwtPayload } }) => {
+				async ({ params: { slug }, auth: { currentUserId } }) => {
 					// Verify article exists
-					const existingArticle = await db.query.articles.findFirst({
-						where: eq(articles.slug, slug),
+					const existingArticle = await db.article.findFirstOrThrow({
+						where: { slug },
+						include: {
+							author: true,
+							tags: true,
+						},
 					});
 
-					if (!existingArticle) {
-						throw new NotFoundError("article");
+					if (existingArticle.authorId !== currentUserId) {
+						throw new RealWorldError(StatusCodes.FORBIDDEN, {
+							article: ["you can only unfavorite your own articles"],
+						});
 					}
 
-					// Remove from favorites
-					await db
-						.delete(favorites)
-						.where(
-							and(
-								eq(favorites.userId, jwtPayload.uid),
-								eq(favorites.articleId, existingArticle.id),
-							),
-						);
-
-					// Get article with author and tags
-					const articleWithData = await db.query.articles.findFirst({
-						where: eq(articles.id, existingArticle.id),
-						with: {
-							author: true,
-							tags: {
-								with: {
-									tag: true,
-								},
+					await db.favorite.delete({
+						where: {
+							userId_articleId: {
+								userId: currentUserId,
+								articleId: existingArticle.id,
 							},
 						},
 					});
 
-					if (!articleWithData) {
-						throw new NotFoundError("article");
-					}
-
-					return toResponse(articleWithData, jwtPayload.uid);
+					return toResponse(existingArticle, currentUserId);
 				},
 				{
 					detail: {
