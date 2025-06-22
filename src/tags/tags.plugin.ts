@@ -1,12 +1,12 @@
 import { Elysia, t } from "elysia";
-import { db } from "@/core/drizzle";
+import { db } from "@/core/db";
 
 export const tags = new Elysia({
 	tags: ["Tags"],
 }).get(
 	"/tags",
 	async () => {
-		const allTags = await db.query.tags.findMany();
+		const allTags = await db.tag.findMany();
 		return {
 			tags: allTags.map((tag) => tag.name),
 		};
