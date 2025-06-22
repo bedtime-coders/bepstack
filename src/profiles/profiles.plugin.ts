@@ -1,17 +1,12 @@
-import { and, eq } from "drizzle-orm";
-import { Elysia, NotFoundError, t } from "elysia";
+import { Elysia, t } from "elysia";
 import { StatusCodes } from "http-status-codes";
-import { db } from "@/core/drizzle";
+import { db } from "@/core/db";
 import { RealWorldError } from "@/shared/errors";
 import { auth } from "@/shared/plugins";
-import { users } from "@/users/users.schema";
 import { toResponse } from "./mappers";
 import { profilesModel } from "./profiles.model";
-import { follows } from "./profiles.schema";
 
-export const profiles = new Elysia({
-	tags: ["Profiles"],
-})
+export const profiles = new Elysia({ tags: ["Profiles"] })
 	.use(auth)
 	.use(profilesModel)
 	.group(
@@ -27,23 +22,21 @@ export const profiles = new Elysia({
 			app
 				.get(
 					"/:username",
-					async ({ params: { username }, auth: { jwtPayload } }) => {
-						const user = await db.query.users.findFirst({
-							where: eq(users.username, username),
+					async ({ params: { username }, auth: { currentUserId } }) => {
+						const profile = await db.user.findFirstOrThrow({
+							where: { username },
 						});
-						if (!user) throw new NotFoundError("profile");
-
-						let following = false;
-						if (jwtPayload) {
-							const follow = await db.query.follows.findFirst({
-								where: and(
-									eq(follows.followerId, jwtPayload.uid),
-									eq(follows.followingId, user.id),
-								),
-							});
-							following = Boolean(follow);
-						}
-						return toResponse(user, following);
+						const following = currentUserId
+							? Boolean(
+									await db.follow.findFirst({
+										where: {
+											followerId: currentUserId,
+											followingId: profile.id,
+										},
+									}),
+								)
+							: false;
+						return toResponse(profile, following);
 					},
 					{
 						detail: {
@@ -63,23 +56,22 @@ export const profiles = new Elysia({
 				})
 				.post(
 					"/:username/follow",
-					async ({ params: { username }, auth: { jwtPayload } }) => {
-						const user = await db.query.users.findFirst({
-							where: eq(users.username, username),
+					async ({ params: { username }, auth: { currentUserId } }) => {
+						const user = await db.user.findFirstOrThrow({
+							where: { username },
 						});
-						if (!user) throw new NotFoundError("profile");
-						if (user.id === jwtPayload.uid) {
+						// TODO: Make this a db constraint
+						if (user.id === currentUserId) {
 							throw new RealWorldError(StatusCodes.UNPROCESSABLE_ENTITY, {
 								profile: ["cannot be followed by yourself"],
 							});
 						}
-						await db
-							.insert(follows)
-							.values({
-								followerId: jwtPayload.uid,
+						await db.follow.create({
+							data: {
+								followerId: currentUserId,
 								followingId: user.id,
-							})
-							.onConflictDoNothing();
+							},
+						});
 						return toResponse(user, true);
 					},
 					{
@@ -93,24 +85,24 @@ export const profiles = new Elysia({
 				)
 				.delete(
 					"/:username/follow",
-					async ({ params: { username }, auth: { jwtPayload } }) => {
-						const user = await db.query.users.findFirst({
-							where: eq(users.username, username),
+					async ({ params: { username }, auth: { currentUserId } }) => {
+						const user = await db.user.findFirstOrThrow({
+							where: { username },
 						});
-						if (!user) throw new NotFoundError("profile");
-						if (user.id === jwtPayload.uid) {
+						// TODO: Make this a db constraint
+						if (user.id === currentUserId) {
 							throw new RealWorldError(StatusCodes.UNPROCESSABLE_ENTITY, {
 								profile: ["cannot be unfollowed by yourself"],
 							});
 						}
-						await db
-							.delete(follows)
-							.where(
-								and(
-									eq(follows.followerId, jwtPayload.uid),
-									eq(follows.followingId, user.id),
-								),
-							);
+						await db.follow.delete({
+							where: {
+								followerId_followingId: {
+									followerId: currentUserId,
+									followingId: user.id,
+								},
+							},
+						});
 						return toResponse(user, false);
 					},
 					{
