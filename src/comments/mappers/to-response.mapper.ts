@@ -1,22 +1,21 @@
+import type { Comment, User } from "@prisma/client";
 import { and, eq, type InferSelectModel, inArray } from "drizzle-orm";
 import { db } from "@/core/drizzle";
 import { follows } from "@/profiles/profiles.schema";
 import type { users } from "@/users/users.schema";
-import type { comments } from "../comments.schema";
 
 /**
  * Map a comment to a response
- * @param comment The comment to map
+ * @param enrichedComment The comment to map
  * @param currentUserId The current user's ID. If provided, the comment will be mapped to the current user's perspective.
  * @param followingStatus Optional pre-fetched following status for the comment author
  * @returns The mapped comment
  */
 export async function toCommentResponse(
-	comment: InferSelectModel<typeof comments> & {
-		author: InferSelectModel<typeof users>;
+	enrichedComment: Comment & {
+		author: User;
 	},
-	currentUserId?: string,
-	followingStatus?: boolean,
+	following: boolean,
 ): Promise<{
 	comment: {
 		id: string;
@@ -31,41 +30,16 @@ export async function toCommentResponse(
 		};
 	};
 }> {
-	let following = false;
-
-	// Use pre-fetched following status if available
-	if (followingStatus !== undefined) {
-		following = followingStatus;
-	} else if (currentUserId && currentUserId !== comment.author.id) {
-		// Fallback to individual query if pre-fetched data not available
-		try {
-			const [follow] = await db
-				.select()
-				.from(follows)
-				.where(
-					and(
-						eq(follows.followerId, currentUserId),
-						eq(follows.followingId, comment.author.id),
-					),
-				);
-			following = Boolean(follow);
-		} catch (error) {
-			console.error("Error checking follow relationship:", error);
-			// Set safe default value to prevent operation failure
-			following = false;
-		}
-	}
-
 	return {
 		comment: {
-			id: comment.id,
-			createdAt: comment.createdAt.toISOString(),
-			updatedAt: comment.updatedAt.toISOString(),
-			body: comment.body,
+			id: enrichedComment.id,
+			createdAt: enrichedComment.createdAt.toISOString(),
+			updatedAt: enrichedComment.updatedAt.toISOString(),
+			body: enrichedComment.body,
 			author: {
-				username: comment.author.username,
-				bio: comment.author.bio,
-				image: comment.author.image,
+				username: enrichedComment.author.username,
+				bio: enrichedComment.author.bio,
+				image: enrichedComment.author.image,
 				following,
 			},
 		},
@@ -84,7 +58,7 @@ export async function toCommentsResponse(
 			author: InferSelectModel<typeof users>;
 		}
 	>,
-	currentUserId?: string,
+	currentUserId?: string | null,
 ): Promise<{
 	comments: Array<{
 		id: string;

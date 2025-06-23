@@ -1,10 +1,10 @@
 import { Elysia, t } from "elysia";
 
-// UUID type using regex (RFC 4122)
-export const UUID = t.String({
-	examples: ["818119a0-9c3b-4116-87d4-4bf4b4e1a2f8"],
-	format: "uuid",
-	description: "must be a valid UUID v4 string",
+// CUID type using regex (RFC 4122)
+export const CUID = t.String({
+	examples: ["cixf02ym000001b66m45ae4k8"],
+	description: "must be a valid CUID",
+	pattern: "^[a-z0-9]{24}$",
 });
 
 export const CreateComment = t.Object({
@@ -17,7 +17,7 @@ export const CreateComment = t.Object({
 });
 
 export const Comment = t.Object({
-	id: UUID,
+	id: CUID,
 	createdAt: t.String({
 		format: "date-time",
 		examples: ["2016-02-18T03:22:56.637Z"],
@@ -54,7 +54,7 @@ export const CommentResponse = t.Object({
 
 // Path parameter model for id
 export const CommentIdParam = t.Object({
-	id: UUID,
+	id: CUID,
 });
 
 export const commentsModel = new Elysia().model({

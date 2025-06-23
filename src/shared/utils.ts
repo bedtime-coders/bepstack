@@ -1,3 +1,5 @@
+import { nanoid } from "nanoid";
+
 export function slugify(...parts: string[]): string {
 	const baseSlug = parts
 		.join("-")
@@ -7,6 +9,6 @@ export function slugify(...parts: string[]): string {
 		.replace(/-+/g, "-")
 		.trim();
 
-	const suffix = crypto.randomUUID().slice(0, 8);
+	const suffix = nanoid(8);
 	return `${baseSlug}-${suffix}`;
 }
