@@ -1,8 +1,14 @@
-import type { Comment, User } from "@prisma/client";
-import { and, eq, type InferSelectModel, inArray } from "drizzle-orm";
-import { db } from "@/core/drizzle";
-import { follows } from "@/profiles/profiles.schema";
-import type { users } from "@/users/users.schema";
+import type { Comment, Follow, User } from "@prisma/client";
+
+/**
+ * Parameters for the toCommentResponse function
+ */
+type ToCommentResponseParams = {
+	/**
+	 * The current user's ID. If provided, the comment will be mapped to the current user's perspective.
+	 */
+	currentUserId?: string | null;
+};
 
 /**
  * Map a comment to a response
@@ -11,12 +17,14 @@ import type { users } from "@/users/users.schema";
  * @param followingStatus Optional pre-fetched following status for the comment author
  * @returns The mapped comment
  */
-export async function toCommentResponse(
+export const toCommentResponse = (
 	enrichedComment: Comment & {
-		author: User;
+		author: User & {
+			followers?: Follow[];
+		};
 	},
-	following: boolean,
-): Promise<{
+	{ currentUserId }: ToCommentResponseParams = {},
+): {
 	comment: {
 		id: string;
 		createdAt: string;
@@ -29,7 +37,15 @@ export async function toCommentResponse(
 			following: boolean;
 		};
 	};
-}> {
+} => {
+	let following = false;
+
+	if (currentUserId && enrichedComment.author.followers) {
+		following = enrichedComment.author.followers.some(
+			(follower) => follower.followerId === currentUserId,
+		);
+	}
+
 	return {
 		comment: {
 			id: enrichedComment.id,
@@ -44,7 +60,9 @@ export async function toCommentResponse(
 			},
 		},
 	};
-}
+};
+
+type ToCommentsResponseParams = Pick<ToCommentResponseParams, "currentUserId">;
 
 /**
  * Map an array of comments to a response
@@ -52,14 +70,16 @@ export async function toCommentResponse(
  * @param currentUserId The current user's ID. If provided, the comments will be mapped to the current user's perspective.
  * @returns The mapped comments
  */
-export async function toCommentsResponse(
+export function toCommentsResponse(
 	commentsWithAuthors: Array<
-		InferSelectModel<typeof comments> & {
-			author: InferSelectModel<typeof users>;
+		Comment & {
+			author: User & {
+				followers?: Follow[];
+			};
 		}
 	>,
-	currentUserId?: string | null,
-): Promise<{
+	{ currentUserId }: ToCommentsResponseParams = {},
+): {
 	comments: Array<{
 		id: string;
 		createdAt: string;
@@ -72,53 +92,11 @@ export async function toCommentsResponse(
 			following: boolean;
 		};
 	}>;
-}> {
-	// Batch fetch all following relationships in a single query
-	let followingStatus: Record<string, boolean> = {};
-
-	if (currentUserId) {
-		try {
-			const authorIds = commentsWithAuthors.map((comment) => comment.author.id);
-			const uniqueAuthorIds = [...new Set(authorIds)];
-
-			if (uniqueAuthorIds.length > 0) {
-				const followRelationships = await db
-					.select({ followingId: follows.followingId })
-					.from(follows)
-					.where(
-						and(
-							eq(follows.followerId, currentUserId),
-							inArray(follows.followingId, uniqueAuthorIds),
-						),
-					);
-
-				// Create a map of author ID to following status
-				followingStatus = followRelationships.reduce(
-					(acc, relation) => {
-						acc[relation.followingId] = true;
-						return acc;
-					},
-					{} as Record<string, boolean>,
-				);
-			}
-		} catch (error) {
-			console.error("Error batch fetching follow relationships:", error);
-			// Continue with empty following status map
-		}
-	}
-
-	// Map comments using pre-fetched following status
-	const comments = await Promise.all(
-		commentsWithAuthors.map(async (comment) => {
-			const following = followingStatus[comment.author.id] || false;
-			const response = await toCommentResponse(
-				comment,
-				currentUserId,
-				following,
-			);
-			return response.comment;
-		}),
-	);
+} {
+	const comments = commentsWithAuthors.map((comment) => {
+		const response = toCommentResponse(comment, { currentUserId });
+		return response.comment;
+	});
 
 	return {
 		comments,

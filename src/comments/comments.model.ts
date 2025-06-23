@@ -4,7 +4,7 @@ import { Elysia, t } from "elysia";
 export const CUID = t.String({
 	examples: ["cixf02ym000001b66m45ae4k8"],
 	description: "must be a valid CUID",
-	pattern: "^[a-z0-9]{24}$",
+	pattern: "^[a-z0-9]{25}$",
 });
 
 export const CreateComment = t.Object({

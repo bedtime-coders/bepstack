@@ -16,21 +16,24 @@ export const commentsPlugin = new Elysia({
 			.get(
 				"/",
 				async ({ params: { slug }, auth: { currentUserId } }) => {
-					const article = await db.article.findFirstOrThrow({
-						where: { slug },
-					});
-
 					const comments = await db.comment.findMany({
-						where: { articleId: article.id },
+						where: { article: { slug } },
 						orderBy: {
 							createdAt: "desc",
 						},
 						include: {
-							author: true,
+							author: {
+								include: {
+									...(currentUserId && {
+										followers: {
+											where: { followerId: currentUserId },
+										},
+									}),
+								},
+							},
 						},
 					});
-
-					return toCommentsResponse(comments, currentUserId);
+					return toCommentsResponse(comments, { currentUserId });
 				},
 				{
 					detail: {
@@ -54,22 +57,25 @@ export const commentsPlugin = new Elysia({
 					body: { comment },
 					auth: { currentUserId },
 				}) => {
-					const article = await db.article.findFirstOrThrow({
-						where: { slug },
-					});
-
 					const createdComment = await db.comment.create({
 						data: {
 							body: comment.body,
-							articleId: article.id,
-							authorId: currentUserId,
+							article: {
+								connect: {
+									slug,
+								},
+							},
+							author: {
+								connect: {
+									id: currentUserId,
+								},
+							},
 						},
 						include: {
 							author: true,
 						},
 					});
-
-					return toCommentResponse(createdComment, false);
+					return toCommentResponse(createdComment, { currentUserId });
 				},
 				{
 					detail: {

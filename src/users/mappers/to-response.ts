@@ -10,17 +10,14 @@ import type { usersModel } from "../users.model";
  * @returns The mapped user
  */
 export const toResponse = async (
-	user: User,
+	{ email, username, bio, image, id }: User,
 	sign: SignFn,
-): Promise<ModelsStatic<typeof usersModel.models>["User"]> => {
-	const { email, username, bio, image } = user;
-	return {
-		user: {
-			token: await sign({ uid: user.id, email, username }),
-			email,
-			username,
-			bio,
-			image,
-		},
-	};
-};
+): Promise<ModelsStatic<typeof usersModel.models>["User"]> => ({
+	user: {
+		token: await sign({ uid: id, email, username }),
+		email,
+		username,
+		bio,
+		image,
+	},
+});
