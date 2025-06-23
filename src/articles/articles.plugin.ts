@@ -137,16 +137,51 @@ export const articlesPlugin = new Elysia({
 			.get(
 				"/:slug",
 				async ({ params: { slug }, auth: { currentUserId } }) => {
+					if (!currentUserId) {
+						const enrichedArticle = await db.article.findFirstOrThrow({
+							where: {
+								slug,
+							},
+							include: {
+								author: true,
+								tags: true,
+							},
+						});
+
+						return toResponse(enrichedArticle, {
+							favorited: false,
+							favoritesCount: 0,
+							following: false,
+						});
+					}
+
 					const enrichedArticle = await db.article.findFirstOrThrow({
 						where: {
 							slug,
 						},
 						include: {
-							author: true,
+							author: {
+								include: {
+									followers: {
+										where: {
+											followerId: currentUserId,
+										},
+									},
+								},
+							},
 							tags: true,
+							favorites: {
+								where: {
+									userId: currentUserId,
+								},
+							},
 						},
 					});
-					return toResponse(enrichedArticle, currentUserId);
+					return toResponse(enrichedArticle, {
+						favorited: enrichedArticle.favorites.length > 0,
+						favoritesCount: enrichedArticle.favorites.length,
+						following: enrichedArticle.author.followers.length > 0,
+					});
 				},
 				{
 					detail: {
@@ -289,7 +324,11 @@ export const articlesPlugin = new Elysia({
 						},
 					});
 
-					return toResponse(createdArticle, currentUserId);
+					return toResponse(createdArticle, {
+						favorited: false,
+						favoritesCount: 0,
+						following: false, // you can't follow yourself
+					});
 				},
 				{
 					detail: {
@@ -322,26 +361,39 @@ export const articlesPlugin = new Elysia({
 							? slugify(article.title)
 							: existingArticle.slug;
 
+					const tagList = article.tagList ?? [];
+
 					const updatedArticle = await db.article.update({
 						where: { id: existingArticle.id },
 						data: {
 							...article,
 							slug: newSlug,
-							...(article.tagList && {
-								tags: {
-									connectOrCreate: article.tagList.map((name) => ({
-										where: { name },
-										create: { name },
-									})),
-								},
-							}),
+							tags: {
+								connectOrCreate: tagList.map((name) => ({
+									where: { name },
+									create: { name },
+								})),
+							},
 						},
 						include: {
-							author: true,
+							author: {
+								include: {
+									followers: true,
+								},
+							},
 							tags: true,
+							favorites: {
+								where: {
+									userId: currentUserId,
+								},
+							},
 						},
 					});
-					return toResponse(updatedArticle, currentUserId);
+					return toResponse(updatedArticle, {
+						favorited: updatedArticle.favorites.length > 0,
+						favoritesCount: updatedArticle.favorites.length,
+						following: updatedArticle.author.followers.length > 0,
+					});
 				},
 				{
 					detail: {
@@ -397,6 +449,7 @@ export const articlesPlugin = new Elysia({
 						include: {
 							author: true,
 							tags: true,
+							favorites: true,
 						},
 					});
 
@@ -420,7 +473,19 @@ export const articlesPlugin = new Elysia({
 						},
 					});
 
-					return toResponse(existingArticle, currentUserId);
+					let favoritesCount = existingArticle.favorites.length;
+					// if you didn't favorite it before, increment the count
+					if (
+						!existingArticle.favorites.some((f) => f.userId === currentUserId)
+					) {
+						favoritesCount++;
+					}
+
+					return toResponse(existingArticle, {
+						favorited: true,
+						favoritesCount,
+						following: false, // you can't follow yourself
+					});
 				},
 				{
 					detail: {
@@ -439,6 +504,7 @@ export const articlesPlugin = new Elysia({
 						include: {
 							author: true,
 							tags: true,
+							favorites: true,
 						},
 					});
 
@@ -457,7 +523,19 @@ export const articlesPlugin = new Elysia({
 						},
 					});
 
-					return toResponse(existingArticle, currentUserId);
+					let favoritesCount = existingArticle.favorites.length;
+					// if you did favorite it before, decrement the count
+					if (
+						existingArticle.favorites.some((f) => f.userId === currentUserId)
+					) {
+						favoritesCount--;
+					}
+
+					return toResponse(existingArticle, {
+						favorited: false,
+						favoritesCount,
+						following: false, // you can't follow yourself
+					});
 				},
 				{
 					detail: {

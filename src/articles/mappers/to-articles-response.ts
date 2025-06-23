@@ -24,14 +24,14 @@ interface Extras {
  * @param extras The extras to map, see {@link Extras}
  * @returns The mapped articles
  */
-export async function toArticlesResponse(
+export function toArticlesResponse(
 	enrichedArticles: EnrichedArticle[],
 	extras: Extras = {
 		userFavorites: [],
 		followStatus: [],
 		favoritesCounts: [],
 	},
-): Promise<ArticlesResponse> {
+): ArticlesResponse {
 	const { userFavorites, followStatus, favoritesCounts } = extras;
 	return {
 		articlesCount: enrichedArticles.length,

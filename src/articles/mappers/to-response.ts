@@ -1,21 +1,30 @@
-import { and, count, eq, type InferSelectModel } from "drizzle-orm";
-import { db } from "@/core/drizzle";
-import { follows } from "@/profiles/profiles.schema";
-import type { tags } from "@/tags/tags.schema";
-import type { users } from "@/users/users.schema";
-import { type articles, favorites } from "../articles.schema";
 import type { EnrichedArticle } from "../interfaces";
+
+type ToResponseParams = {
+	/**
+	 * Whether the article is favorited
+	 */
+	favorited: boolean;
+	/**
+	 * The number of favorites
+	 */
+	favoritesCount: number;
+	/**
+	 * Whether the current user is following the article author
+	 */
+	following: boolean;
+};
 
 /**
  * Map an article to a response
  * @param article The article to map
- * @param currentUserId The current user's ID. If provided, the article will be mapped to the current user's perspective.
+ * @param params The parameters to map the article
  * @returns The mapped article
  */
-export async function toResponse(
+export function toResponse(
 	article: EnrichedArticle,
-	currentUserId?: string | null,
-): Promise<{
+	{ favorited, favoritesCount, following }: ToResponseParams,
+): {
 	article: {
 		slug: string;
 		title: string;
@@ -33,40 +42,7 @@ export async function toResponse(
 			following: boolean;
 		};
 	};
-}> {
-	const [favoritesCount] = await db
-		.select({ count: count() })
-		.from(favorites)
-		.where(eq(favorites.articleId, article.id));
-
-	let favorited = false;
-	if (currentUserId) {
-		const [favorite] = await db
-			.select()
-			.from(favorites)
-			.where(
-				and(
-					eq(favorites.articleId, article.id),
-					eq(favorites.userId, currentUserId),
-				),
-			);
-		favorited = Boolean(favorite);
-	}
-
-	let following = false;
-	if (currentUserId && currentUserId !== article.author.id) {
-		const [follow] = await db
-			.select()
-			.from(follows)
-			.where(
-				and(
-					eq(follows.followerId, currentUserId),
-					eq(follows.followingId, article.author.id),
-				),
-			);
-		following = Boolean(follow);
-	}
-
+} {
 	return {
 		article: {
 			slug: article.slug,
@@ -79,7 +55,7 @@ export async function toResponse(
 			createdAt: article.createdAt.toISOString(),
 			updatedAt: article.updatedAt.toISOString(),
 			favorited,
-			favoritesCount: Number(favoritesCount?.count || 0),
+			favoritesCount,
 			author: {
 				username: article.author.username,
 				bio: article.author.bio,
