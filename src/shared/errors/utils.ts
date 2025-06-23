@@ -1,5 +1,4 @@
 import camelcase from "camelcase";
-import type { DrizzleQueryError } from "drizzle-orm/errors";
 import type { NotFoundError, ValidationError } from "elysia";
 import type { Prisma } from "@/core/db";
 import { ConflictingFieldsError } from "./conflicting-fields";
@@ -71,15 +70,6 @@ export function formatNotFoundError(error: NotFoundError) {
 	return {
 		errors: {
 			[error.message.toLowerCase()]: "not found",
-		},
-	};
-}
-
-export function formatDrizzleError(error: DrizzleQueryError) {
-	console.error(error);
-	return {
-		errors: {
-			database: "error occurred",
 		},
 	};
 }

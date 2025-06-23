@@ -1,4 +1,3 @@
-import { eq } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 import { StatusCodes } from "http-status-codes";
 import { db } from "@/core/db";
