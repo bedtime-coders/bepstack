@@ -36,7 +36,7 @@ try {
 console.info(chalk.gray("Resetting database"));
 
 try {
-	await $`bun run db:reset`.quiet();
+	await $`bun run db:reset --force`.quiet();
 } catch (error) {
 	if (!(error instanceof Bun.$.ShellError)) throw error;
 	console.error(chalk.red(`Database reset failed with code ${error.exitCode}`));
