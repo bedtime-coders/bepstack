@@ -1,22 +1,21 @@
-import { sql } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 import { StatusCodes } from "http-status-codes";
-import { db } from "@/core/drizzle";
 import { RealWorldError } from "@/shared/errors";
+import { db } from "../db";
 
 export const health = new Elysia({
 	tags: ["Health"],
 }).get(
 	"health",
 	async ({ set }) => {
-		// check the database connection
-		const isDbHealthy = await db.execute(sql`SELECT 1`);
-		if (!isDbHealthy) {
+		try {
+			await db.$queryRaw`SELECT 1`;
+			set.status = StatusCodes.NO_CONTENT;
+		} catch {
 			throw new RealWorldError(StatusCodes.SERVICE_UNAVAILABLE, {
 				database: ["not healthy"],
 			});
 		}
-		set.status = StatusCodes.NO_CONTENT;
 	},
 	{
 		detail: {

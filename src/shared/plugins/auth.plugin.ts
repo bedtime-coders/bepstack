@@ -1,10 +1,9 @@
 import { eq } from "drizzle-orm";
 import { Elysia, t } from "elysia";
 import { StatusCodes } from "http-status-codes";
-import { db } from "@/core/drizzle";
+import { db } from "@/core/db";
 import { env } from "@/core/env";
 import { RealWorldError } from "@/shared/errors";
-import { users } from "@/users/users.schema";
 import { name } from "../../../package.json";
 import jwt from "./jwt.plugin";
 import { token } from "./token.plugin";
@@ -60,17 +59,18 @@ export const auth = new Elysia()
 					});
 				}
 
+				const currentUserId = jwtPayload.uid;
 				// Check user exists in DB
-				const user = await db.query.users.findFirst({
-					where: eq(users.id, jwtPayload.uid),
+				const user = await db.user.findFirst({
+					where: {
+						id: currentUserId,
+					},
 				});
 				if (!user) {
 					throw new RealWorldError(StatusCodes.UNAUTHORIZED, {
 						token: ["belongs to a non-existent user"],
 					});
 				}
-
-				const currentUserId = jwtPayload.uid;
 
 				return { auth: { ...auth, jwtPayload, currentUserId } };
 			},

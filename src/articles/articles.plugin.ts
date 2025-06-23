@@ -443,19 +443,39 @@ export const articlesPlugin = new Elysia({
 			.post(
 				"/:slug/favorite",
 				async ({ params: { slug }, auth: { currentUserId } }) => {
-					// Verify article exists
-					const existingArticle = await db.article.findFirstOrThrow({
+					// 1. Fetch everything in one go
+					const article = await db.article.findFirstOrThrow({
 						where: { slug },
 						include: {
-							author: true,
+							author: {
+								include: {
+									followers: {
+										where: { followerId: currentUserId },
+									},
+								},
+							},
 							tags: true,
-							favorites: true,
+							favorites: {
+								where: { userId: currentUserId },
+							},
+							_count: {
+								select: { favorites: true },
+							},
 						},
 					});
 
-					if (existingArticle.authorId !== currentUserId) {
+					if (article.authorId !== currentUserId) {
 						throw new RealWorldError(StatusCodes.FORBIDDEN, {
 							article: ["you can only favorite your own articles"],
+						});
+					}
+
+					// 2. Only upsert if not already favorited
+					if (article.favorites.length > 0) {
+						return toResponse(article, {
+							favorited: true,
+							favoritesCount: article._count.favorites,
+							following: article.author.followers.length > 0,
 						});
 					}
 
@@ -463,28 +483,20 @@ export const articlesPlugin = new Elysia({
 						where: {
 							userId_articleId: {
 								userId: currentUserId,
-								articleId: existingArticle.id,
+								articleId: article.id,
 							},
 						},
 						update: {},
 						create: {
 							userId: currentUserId,
-							articleId: existingArticle.id,
+							articleId: article.id,
 						},
 					});
 
-					let favoritesCount = existingArticle.favorites.length;
-					// if you didn't favorite it before, increment the count
-					if (
-						!existingArticle.favorites.some((f) => f.userId === currentUserId)
-					) {
-						favoritesCount++;
-					}
-
-					return toResponse(existingArticle, {
+					return toResponse(article, {
 						favorited: true,
-						favoritesCount,
-						following: false, // you can't follow yourself
+						favoritesCount: article._count.favorites + 1,
+						following: article.author.followers.length > 0,
 					});
 				},
 				{
@@ -498,13 +510,26 @@ export const articlesPlugin = new Elysia({
 			.delete(
 				"/:slug/favorite",
 				async ({ params: { slug }, auth: { currentUserId } }) => {
-					// Verify article exists
+					// 1. Fetch everything in one go
 					const existingArticle = await db.article.findFirstOrThrow({
 						where: { slug },
 						include: {
-							author: true,
+							author: {
+								include: {
+									followers: {
+										where: { followerId: currentUserId },
+									},
+								},
+							},
 							tags: true,
-							favorites: true,
+							favorites: {
+								where: {
+									userId: currentUserId,
+								},
+							},
+							_count: {
+								select: { favorites: true },
+							},
 						},
 					});
 
@@ -514,6 +539,15 @@ export const articlesPlugin = new Elysia({
 						});
 					}
 
+					if (existingArticle.favorites.length === 0) {
+						return toResponse(existingArticle, {
+							favorited: false,
+							favoritesCount: existingArticle._count.favorites,
+							following: false, // you can't follow yourself
+						});
+					}
+
+					// 2. Delete the favorite
 					await db.favorite.delete({
 						where: {
 							userId_articleId: {
@@ -523,17 +557,10 @@ export const articlesPlugin = new Elysia({
 						},
 					});
 
-					let favoritesCount = existingArticle.favorites.length;
-					// if you did favorite it before, decrement the count
-					if (
-						existingArticle.favorites.some((f) => f.userId === currentUserId)
-					) {
-						favoritesCount--;
-					}
-
+					// 3. Return the updated article
 					return toResponse(existingArticle, {
 						favorited: false,
-						favoritesCount,
+						favoritesCount: existingArticle._count.favorites - 1,
 						following: false, // you can't follow yourself
 					});
 				},
