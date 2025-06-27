@@ -16,8 +16,12 @@ export const commentsPlugin = new Elysia({
 			.get(
 				"/",
 				async ({ params: { slug }, auth: { currentUserId } }) => {
+					// Verify the article exists
+					const article = await db.article.findFirstOrThrow({
+						where: { slug },
+					});
 					const comments = await db.comment.findMany({
-						where: { article: { slug } },
+						where: { articleId: article.id },
 						orderBy: {
 							createdAt: "desc",
 						},
@@ -57,12 +61,16 @@ export const commentsPlugin = new Elysia({
 					body: { comment },
 					auth: { currentUserId },
 				}) => {
+					// Verify the article exists
+					const article = await db.article.findFirstOrThrow({
+						where: { slug },
+					});
 					const createdComment = await db.comment.create({
 						data: {
 							body: comment.body,
 							article: {
 								connect: {
-									slug,
+									id: article.id,
 								},
 							},
 							author: {
