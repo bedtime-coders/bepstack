@@ -116,9 +116,7 @@ export const commentsPlugin = new Elysia({
 						});
 					}
 
-					await db.comment.delete({
-						where: { id },
-					});
+					await db.comment.delete({ where: { id } });
 
 					set.status = StatusCodes.NO_CONTENT;
 				},
