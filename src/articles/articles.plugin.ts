@@ -108,12 +108,12 @@ export const articlesPlugin = new Elysia({
 							db.follow.findMany({
 								where: {
 									followerId: currentUserId,
-									followingId: {
+									followedId: {
 										in: authorIds,
 									},
 								},
 								select: {
-									followingId: true,
+									followedId: true,
 								},
 							}),
 						]);
@@ -211,11 +211,11 @@ export const articlesPlugin = new Elysia({
 							followerId: currentUserId,
 						},
 						select: {
-							followingId: true,
+							followedId: true,
 						},
 					});
 
-					const followedIds = followed.map((f) => f.followingId);
+					const followedIds = followed.map((f) => f.followedId);
 					if (followedIds.length === 0) return toArticlesResponse([]);
 
 					// Step 2: Get articles from followed authors
@@ -262,12 +262,12 @@ export const articlesPlugin = new Elysia({
 							db.follow.findMany({
 								where: {
 									followerId: currentUserId,
-									followingId: {
+									followedId: {
 										in: authorIds,
 									},
 								},
 								select: {
-									followingId: true,
+									followedId: true,
 								},
 							}),
 						]);

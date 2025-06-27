@@ -69,16 +69,16 @@ model Favorite {
 /// User follow relationships
 model Follow {
   followerId  String   @map("follower_id")
-  followingId String   @map("following_id")
+  followedId String   @map("followed_id")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
   
   // Relations
-  follower    User     @relation("UserFollowers", fields: [followerId], references: [id], onDelete: Cascade)
-  following   User     @relation("UserFollowing", fields: [followingId], references: [id], onDelete: Cascade)
+  follower    User     @relation("Followers", fields: [followerId], references: [id], onDelete: Cascade) // I am the followerId in those rows 
+  followed   User     @relation("Following", fields: [followedId], references: [id], onDelete: Cascade) // I am the followedId in those rows 
 
-  @@id([followerId, followingId])
-  @@unique([followerId, followingId])
+  @@id([followerId, followedId])
+  @@unique([followerId, followedId])
   @@map("follows")
 }
 
@@ -107,8 +107,8 @@ model User {
   articles   Article[]
   comments   Comment[]
   favorites  Favorite[]
-  followers  Follow[]    @relation("UserFollowers")
-  following  Follow[]    @relation("UserFollowing")
+  followers  Follow[]    @relation("Following") // I am the followedId in those rows 
+  following  Follow[]    @relation("Followers") // I am the followerId in those rows 
 
   @@map("users")
 }

@@ -31,7 +31,7 @@ export const profiles = new Elysia({ tags: ["Profiles"] })
 									await db.follow.findFirst({
 										where: {
 											followerId: currentUserId,
-											followingId: profile.id,
+											followedId: profile.id,
 										},
 									}),
 								)
@@ -66,10 +66,17 @@ export const profiles = new Elysia({ tags: ["Profiles"] })
 								profile: ["cannot be followed by yourself"],
 							});
 						}
-						await db.follow.create({
-							data: {
+						await db.follow.upsert({
+							where: {
+								followerId_followedId: {
+									followerId: currentUserId,
+									followedId: user.id,
+								},
+							},
+							update: {},
+							create: {
 								followerId: currentUserId,
-								followingId: user.id,
+								followedId: user.id,
 							},
 						});
 						return toResponse(user, true);
@@ -97,9 +104,9 @@ export const profiles = new Elysia({ tags: ["Profiles"] })
 						}
 						await db.follow.delete({
 							where: {
-								followerId_followingId: {
+								followerId_followedId: {
 									followerId: currentUserId,
-									followingId: user.id,
+									followedId: user.id,
 								},
 							},
 						});

@@ -11,7 +11,7 @@ interface Extras {
 	/**
 	 * The user's follow status
 	 */
-	followStatus: { followingId: string }[];
+	followStatus: { followedId: string }[];
 	/**
 	 * The favorites counts
 	 */
@@ -42,7 +42,7 @@ export function toArticlesResponse(
 				(fav) => fav.articleId === article.id,
 			);
 			const isFollowing = followStatus.some(
-				(follow) => follow.followingId === article.author.id,
+				(follow) => follow.followedId === article.author.id,
 			);
 			return {
 				slug: article.slug,
