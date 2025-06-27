@@ -68,11 +68,6 @@ export const usersPlugin = new Elysia({ tags: ["Auth"] })
 							}),
 						},
 					});
-					if (!createdUser) {
-						throw new RealWorldError(StatusCodes.INTERNAL_SERVER_ERROR, {
-							user: ["failed to create"],
-						});
-					}
 					return toResponse(createdUser, sign);
 				},
 				{
