@@ -5,8 +5,8 @@
 	"type": "module",
 	"scripts": {
 		"dev": "bun run --watch src/index.ts",
-		"build": "bun build src/index.ts --outdir dist --target=bun --sourcemap",
-		"preview": "bun run dist/index.js",
+		"build": "bun run scripts/build.sh",
+		"preview": "./dist/server",
 		"fix": "biome check --write",
 		"check": "biome check",
 		"check:errors": "biome check --diagnostic-level=error",

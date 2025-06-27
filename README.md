@@ -58,7 +58,6 @@ This project demonstrates the stack in action via a [RealWorld](https://github.c
    bun db:studio
    ```
 
-
 ## Testing
 
 Run all tests:
@@ -77,6 +76,23 @@ bun test:unit # Run the unit tests
 > ```bash
 > cp .env.test.example .env.test
 > ```
+
+## Building for production
+
+> [!TIP]
+> See more info in ElysiaJS's [building for production](https://elysiajs.com/tutorial.html#build-for-production) guide.
+
+1. Build the app
+
+   ```bash
+   bun run build # not `bun build`!
+   ```
+
+2. Run the production server (preview)
+
+   ```bash
+   bun preview
+   ```
 
 ## Contributing
 
