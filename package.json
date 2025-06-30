@@ -41,14 +41,14 @@
 		"jose": "^6.0.11",
 		"nanoid": "^5.1.5",
 		"prisma": "^6.10.1",
-		"radashi": "^12.5.1"
+		"radashi": "^12.6.0"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.0.5",
+		"@biomejs/biome": "^2.0.6",
 		"@types/bun": "^1.2.17",
 		"@types/newman": "^5.3.6",
 		"newman": "^6.2.1",
-		"pg": "^8.16.2",
+		"pg": "^8.16.3",
 		"typescript": "^5.8.3"
 	},
 	"module": "src/index.js"
