@@ -104,7 +104,7 @@ export const articlesPlugin = new Elysia({
 								},
 							},
 							_count: {
-								select: { favorites: true },
+								select: { favoritedBy: true },
 							},
 						},
 					});
@@ -162,7 +162,7 @@ export const articlesPlugin = new Elysia({
 								},
 							},
 							_count: {
-								select: { favorites: true },
+								select: { favoritedBy: true },
 							},
 						},
 					});
@@ -208,7 +208,7 @@ export const articlesPlugin = new Elysia({
 								},
 							},
 							_count: {
-								select: { favorites: true },
+								select: { favoritedBy: true },
 							},
 						},
 					});
@@ -273,7 +273,7 @@ export const articlesPlugin = new Elysia({
 								},
 							},
 							_count: {
-								select: { favorites: true },
+								select: { favoritedBy: true },
 							},
 						},
 					});
@@ -346,21 +346,25 @@ export const articlesPlugin = new Elysia({
 									where: { id: currentUserId },
 								},
 								_count: {
-									select: { favorites: true },
+									select: { favoritedBy: true },
 								},
 							},
 						});
 
 						// 2. Check if already favorited
-						if (article.favorites.length > 0) {
+						if (article.favoritedBy.length > 0) {
 							return toResponse(article, { currentUserId });
 						}
 
 						// 3. Create the favorite
-						await tx.favorite.create({
+						await tx.user.update({
+							where: { id: currentUserId },
 							data: {
-								userId: currentUserId,
-								articleId: article.id,
+								favorites: {
+									connect: {
+										id: article.id,
+									},
+								},
 							},
 						});
 
@@ -368,7 +372,7 @@ export const articlesPlugin = new Elysia({
 						return toResponse(article, {
 							currentUserId,
 							favorited: true,
-							favoritesCount: article._count.favorites + 1,
+							favoritesCount: article._count.favoritedBy + 1,
 						});
 					});
 				},
@@ -400,22 +404,24 @@ export const articlesPlugin = new Elysia({
 									where: { id: currentUserId },
 								},
 								_count: {
-									select: { favorites: true },
+									select: { favoritedBy: true },
 								},
 							},
 						});
 
 						// 2. Check if not favorited
-						if (article.favorites.length === 0) {
+						if (article.favoritedBy.length === 0) {
 							return toResponse(article, { currentUserId });
 						}
 
 						// 3. Delete the favorite
-						await tx.favorite.delete({
-							where: {
-								userId_articleId: {
-									userId: currentUserId,
-									articleId: article.id,
+						await tx.user.update({
+							where: { id: currentUserId },
+							data: {
+								favorites: {
+									disconnect: {
+										id: article.id,
+									},
 								},
 							},
 						});
@@ -424,7 +430,7 @@ export const articlesPlugin = new Elysia({
 						return toResponse(article, {
 							currentUserId,
 							favorited: false,
-							favoritesCount: article._count.favorites - 1,
+							favoritesCount: article._count.favoritedBy - 1,
 						});
 					});
 				},

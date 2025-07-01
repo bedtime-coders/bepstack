@@ -7,6 +7,6 @@ export type EnrichedArticle = Article & {
 	tags: Tag[];
 	favoritedBy: User[];
 	_count?: {
-		favorites: number;
+		favoritedBy: number;
 	};
 };
