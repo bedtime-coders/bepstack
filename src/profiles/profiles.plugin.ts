@@ -66,18 +66,9 @@ export const profiles = new Elysia({ tags: ["Profiles"] })
 								profile: ["cannot be followed by yourself"],
 							});
 						}
-						await db.follow.upsert({
-							where: {
-								followerId_followedId: {
-									followerId: currentUserId,
-									followedId: user.id,
-								},
-							},
-							update: {},
-							create: {
-								followerId: currentUserId,
-								followedId: user.id,
-							},
+						await db.follow.createMany({
+							data: [{ followerId: currentUserId, followedId: user.id }],
+							skipDuplicates: true,
 						});
 						return toResponse(user, true);
 					},

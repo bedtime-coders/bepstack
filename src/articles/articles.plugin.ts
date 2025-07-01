@@ -290,31 +290,17 @@ export const articlesPlugin = new Elysia({
 			.post(
 				"/",
 				async ({ body: { article }, auth: { currentUserId } }) => {
-					const slug = slugify(article.title);
-
-					// Upsert tags
-					const tagList = article.tagList ?? [];
-					const tags = await Promise.all(
-						tagList.map(async (name) =>
-							db.tag.upsert({
-								where: { name },
-								update: {},
-								create: { name },
-							}),
-						),
-					);
-
 					const createdArticle = await db.article.create({
 						data: {
-							slug,
+							slug: slugify(article.title),
 							title: article.title,
 							description: article.description,
 							body: article.body,
 							authorId: currentUserId,
 							tags: {
-								connectOrCreate: tags.map((tag) => ({
-									where: { id: tag.id },
-									create: { name: tag.name },
+								connectOrCreate: article.tagList?.map((name) => ({
+									where: { name },
+									create: { name },
 								})),
 							},
 						},
@@ -361,15 +347,13 @@ export const articlesPlugin = new Elysia({
 							? slugify(article.title)
 							: existingArticle.slug;
 
-					const tagList = article.tagList ?? [];
-
 					const updatedArticle = await db.article.update({
 						where: { id: existingArticle.id },
 						data: {
 							...article,
 							slug: newSlug,
 							tags: {
-								connectOrCreate: tagList.map((name) => ({
+								connectOrCreate: article.tagList?.map((name) => ({
 									where: { name },
 									create: { name },
 								})),
