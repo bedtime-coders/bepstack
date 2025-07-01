@@ -23,6 +23,7 @@
 		"db:push": "prisma db push",
 		"db:migrate": "prisma migrate dev",
 		"db:reset": "prisma migrate reset",
+		"db:status": "prisma migrate status",
 		"db:start": "docker compose up -d",
 		"db:stop": "docker compose stop",
 		"db:restart": "docker compose restart",
