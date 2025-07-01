@@ -59,17 +59,17 @@ export const articlesPlugin = new Elysia({
 						include: {
 							author: {
 								include: {
-									followers: {
+									followedBy: {
 										where: {
-											followerId: currentUserId,
+											id: currentUserId,
 										},
 									},
 								},
 							},
 							tags: true,
-							favorites: {
+							favoritedBy: {
 								where: {
-									userId: currentUserId,
+									id: currentUserId,
 								},
 							},
 						},
@@ -94,13 +94,13 @@ export const articlesPlugin = new Elysia({
 						include: {
 							author: {
 								include: {
-									followers: true,
+									followedBy: true,
 								},
 							},
 							tags: true,
-							favorites: {
+							favoritedBy: {
 								where: {
-									userId: currentUserId,
+									id: currentUserId,
 								},
 							},
 							_count: {
@@ -135,9 +135,9 @@ export const articlesPlugin = new Elysia({
 					const enrichedArticles = await db.article.findMany({
 						where: {
 							author: {
-								followers: {
+								followedBy: {
 									some: {
-										followerId: currentUserId,
+										id: currentUserId,
 									},
 								},
 							},
@@ -148,17 +148,17 @@ export const articlesPlugin = new Elysia({
 						include: {
 							author: {
 								include: {
-									followers: {
+									followedBy: {
 										where: {
-											followerId: currentUserId,
+											id: currentUserId,
 										},
 									},
 								},
 							},
 							tags: true,
-							favorites: {
+							favoritedBy: {
 								where: {
-									userId: currentUserId,
+									id: currentUserId,
 								},
 							},
 							_count: {
@@ -198,13 +198,13 @@ export const articlesPlugin = new Elysia({
 						include: {
 							author: {
 								include: {
-									followers: true,
+									followedBy: true,
 								},
 							},
 							tags: true,
-							favorites: {
+							favoritedBy: {
 								where: {
-									userId: currentUserId,
+									id: currentUserId,
 								},
 							},
 							_count: {
@@ -263,13 +263,13 @@ export const articlesPlugin = new Elysia({
 						include: {
 							author: {
 								include: {
-									followers: true,
+									followedBy: true,
 								},
 							},
 							tags: true,
-							favorites: {
+							favoritedBy: {
 								where: {
-									userId: currentUserId,
+									id: currentUserId,
 								},
 							},
 							_count: {
@@ -336,14 +336,14 @@ export const articlesPlugin = new Elysia({
 							include: {
 								author: {
 									include: {
-										followers: {
-											where: { followerId: currentUserId },
+										followedBy: {
+											where: { id: currentUserId },
 										},
 									},
 								},
 								tags: true,
-								favorites: {
-									where: { userId: currentUserId },
+								favoritedBy: {
+									where: { id: currentUserId },
 								},
 								_count: {
 									select: { favorites: true },
@@ -390,14 +390,14 @@ export const articlesPlugin = new Elysia({
 							include: {
 								author: {
 									include: {
-										followers: {
-											where: { followerId: currentUserId },
+										followedBy: {
+											where: { id: currentUserId },
 										},
 									},
 								},
 								tags: true,
-								favorites: {
-									where: { userId: currentUserId },
+								favoritedBy: {
+									where: { id: currentUserId },
 								},
 								_count: {
 									select: { favorites: true },
