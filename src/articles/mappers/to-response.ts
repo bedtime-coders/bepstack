@@ -39,7 +39,7 @@ export function toResponse(
 	};
 } {
 	const favorited = article.favorites?.some((f) => f.userId === currentUserId);
-	const favoritesCount = article.favorites?.length ?? 0;
+	const favoritesCount = article._count?.favorites ?? article.favorites.length;
 	const following = article.author.followers?.some(
 		(f) => f.followedId === currentUserId,
 	);
