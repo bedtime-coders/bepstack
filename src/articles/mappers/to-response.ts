@@ -51,14 +51,13 @@ export function toResponse(
 	};
 } {
 	const favorited =
-		favoritedParam ??
-		article.favorites?.some((f) => f.userId === currentUserId);
+		favoritedParam ?? article.favoritedBy?.some((f) => f.id === currentUserId);
 	const favoritesCount =
 		favoritesCountParam ??
-		article._count?.favorites ??
-		article.favorites.length;
-	const following = article.author.followers?.some(
-		(f) => f.followedId === currentUserId,
+		article._count?.favoritedBy ??
+		article.favoritedBy.length;
+	const following = article.author.followedBy?.some(
+		(f) => f.id === currentUserId,
 	);
 
 	return {

@@ -26,16 +26,14 @@ export const profiles = new Elysia({ tags: ["Profiles"] })
 						const profile = await db.user.findFirstOrThrow({
 							where: { username },
 						});
-						const following = currentUserId
-							? Boolean(
-									await db.follow.findFirst({
-										where: {
-											followerId: currentUserId,
-											followedId: profile.id,
-										},
-									}),
-								)
-							: false;
+						const [{ exists: following } = { exists: false }] =
+							await db.$queryRaw<{ exists: boolean }[]>`
+						SELECT EXISTS (
+							SELECT 1
+							FROM "_UserFollows"
+							WHERE "A" = ${currentUserId} AND "B" = ${profile.id}
+						) AS "exists"
+					`;
 						return toResponse(profile, following);
 					},
 					{
@@ -66,9 +64,9 @@ export const profiles = new Elysia({ tags: ["Profiles"] })
 								profile: ["cannot be followed by yourself"],
 							});
 						}
-						await db.follow.createMany({
-							data: [{ followerId: currentUserId, followedId: user.id }],
-							skipDuplicates: true,
+						await db.user.update({
+							where: { id: currentUserId },
+							data: { following: { connect: { id: user.id } } },
 						});
 						return toResponse(user, true);
 					},
@@ -93,13 +91,9 @@ export const profiles = new Elysia({ tags: ["Profiles"] })
 								profile: ["cannot be unfollowed by yourself"],
 							});
 						}
-						await db.follow.delete({
-							where: {
-								followerId_followedId: {
-									followerId: currentUserId,
-									followedId: user.id,
-								},
-							},
+						await db.user.update({
+							where: { id: currentUserId },
+							data: { following: { disconnect: { id: user.id } } },
 						});
 						return toResponse(user, false);
 					},

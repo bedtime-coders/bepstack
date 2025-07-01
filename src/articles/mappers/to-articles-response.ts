@@ -22,12 +22,11 @@ export function toArticlesResponse(
 ): ArticlesResponse {
 	const myArticles = enrichedArticles.map((article) => {
 		const myFavorites =
-			article.favorites?.filter((f) => f.userId === currentUserId) ?? [];
+			article.favoritedBy?.filter((f) => f.id === currentUserId) ?? [];
 		const myFollows =
-			article.author.followers?.filter((f) => f.followedId === currentUserId) ??
-			[];
+			article.author.followedBy?.filter((f) => f.id === currentUserId) ?? [];
 		const favoritesCount =
-			article._count?.favorites ?? article.favorites.length;
+			article._count?.favoritedBy ?? article.favoritedBy.length;
 		const isFavorited = myFavorites.length > 0;
 		const isFollowing = myFollows.length > 0;
 		return {

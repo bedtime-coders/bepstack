@@ -1,12 +1,12 @@
-import type { Article, Favorite, Follow, Tag, User } from "@prisma/client";
+import type { Article, Tag, User } from "@prisma/client";
 
 export type EnrichedArticle = Article & {
 	author: User & {
-		followers: Follow[];
+		followedBy: User[];
 	};
 	tags: Tag[];
-	favorites: Favorite[];
+	favoritedBy: User[];
 	_count?: {
-		favorites: number;
+		favoritedBy: number;
 	};
 };

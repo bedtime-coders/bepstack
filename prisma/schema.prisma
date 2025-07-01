@@ -8,7 +8,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// Articles published by users
 model Article {
   id          String        @id @default(cuid())
   slug        String        @unique
@@ -16,83 +15,40 @@ model Article {
   description String
   body        String
   authorId    String        @map("author_id")
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
-  
-  // Relations
   author      User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
   tags        Tag[]
   comments    Comment[]
-  favorites   Favorite[]
-
+  favoritedBy User[] @relation("UserFavorites")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
   @@index([authorId])
   @@index([createdAt])
-  @@index([slug])
   @@map("articles")
 }
 
-/// Comments on articles
 model Comment {
   id         String   @id @default(cuid())
   body       String
   articleId  String   @map("article_id")
   authorId   String   @map("author_id")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
-  
-  // Relations
   article    Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
   author     User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
   @@index([articleId])
   @@index([authorId])
   @@index([createdAt])
   @@map("comments")
 }
 
-/// User favorites for articles
-model Favorite {
-  userId    String   @map("user_id")
-  articleId String   @map("article_id")
-  createdAt DateTime @default(now()) @map("created_at")
-  
-  // Relations
-  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@id([userId, articleId])
-  @@index([articleId])
-  @@index([userId])
-  @@map("favorites")
-}
-
-/// User follow relationships
-model Follow {
-  followerId  String   @map("follower_id")
-  followedId String   @map("followed_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  
-  // Relations
-  follower    User     @relation("Followers", fields: [followerId], references: [id], onDelete: Cascade) // I am the followerId in those rows 
-  followed   User     @relation("Following", fields: [followedId], references: [id], onDelete: Cascade) // I am the followedId in those rows 
-
-  @@id([followerId, followedId])
-  @@unique([followerId, followedId])
-  @@map("follows")
-}
-
-/// Tags for categorizing articles
 model Tag {
   id          String        @id @default(cuid())
   name        String        @unique
   articles    Article[]
-
   @@index([name])
   @@map("tags")
 }
 
-/// User accounts
 model User {
   id        String      @id @default(cuid())
   email     String      @unique
@@ -100,15 +56,12 @@ model User {
   bio       String?
   image     String?
   password  String
-  createdAt DateTime    @default(now()) @map("created_at")
-  updatedAt DateTime    @updatedAt @map("updated_at")
-  
-  // Relations
   articles   Article[]
   comments   Comment[]
-  favorites  Favorite[]
-  followers  Follow[]    @relation("Following") // I am the followedId in those rows 
-  following  Follow[]    @relation("Followers") // I am the followerId in those rows 
-
+  favorites  Article[] @relation("UserFavorites")
+  following  User[]    @relation("UserFollows")
+  followedBy  User[]    @relation("UserFollows")
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
   @@map("users")
 }
