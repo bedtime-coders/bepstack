@@ -350,12 +350,6 @@ export const articlesPlugin = new Elysia({
 						},
 					});
 
-					if (article.authorId === currentUserId) {
-						throw new RealWorldError(StatusCodes.FORBIDDEN, {
-							article: ["you cannot favorite your own articles"],
-						});
-					}
-
 					// 2. Only upsert if not already favorited
 					if (article.favorites.length > 0) {
 						return toResponse(article, {
@@ -379,6 +373,8 @@ export const articlesPlugin = new Elysia({
 
 					return toResponse(article, {
 						currentUserId,
+						favorited: true,
+						favoritesCount: article._count.favorites + 1,
 					});
 				},
 				{
@@ -415,16 +411,8 @@ export const articlesPlugin = new Elysia({
 						},
 					});
 
-					if (existingArticle.authorId === currentUserId) {
-						throw new RealWorldError(StatusCodes.FORBIDDEN, {
-							article: ["you cannot unfavorite your own articles"],
-						});
-					}
-
 					if (existingArticle.favorites.length === 0) {
-						return toResponse(existingArticle, {
-							currentUserId,
-						});
+						return toResponse(existingArticle, { currentUserId });
 					}
 
 					// 2. Delete the favorite
@@ -437,9 +425,10 @@ export const articlesPlugin = new Elysia({
 						},
 					});
 
-					// 3. Return the updated article
 					return toResponse(existingArticle, {
 						currentUserId,
+						favorited: false,
+						favoritesCount: existingArticle._count.favorites - 1,
 					});
 				},
 				{

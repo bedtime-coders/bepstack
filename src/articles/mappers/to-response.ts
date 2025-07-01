@@ -8,6 +8,14 @@ type ToResponseParams = {
 	 * The current user's ID. If provided, the article will be mapped to the current user's perspective.
 	 */
 	currentUserId?: string;
+	/**
+	 * The favorited status for the current user. If provided, the article will be mapped to the current user's perspective.
+	 */
+	favorited?: boolean;
+	/**
+	 * The favorites count for the current user. If provided, the article will be mapped to the current user's perspective.
+	 */
+	favoritesCount?: number;
 };
 
 /**
@@ -18,7 +26,11 @@ type ToResponseParams = {
  */
 export function toResponse(
 	article: EnrichedArticle,
-	{ currentUserId }: ToResponseParams = {},
+	{
+		currentUserId,
+		favorited: favoritedParam,
+		favoritesCount: favoritesCountParam,
+	}: ToResponseParams = {},
 ): {
 	article: {
 		slug: string;
@@ -38,8 +50,13 @@ export function toResponse(
 		};
 	};
 } {
-	const favorited = article.favorites?.some((f) => f.userId === currentUserId);
-	const favoritesCount = article._count?.favorites ?? article.favorites.length;
+	const favorited =
+		favoritedParam ??
+		article.favorites?.some((f) => f.userId === currentUserId);
+	const favoritesCount =
+		favoritesCountParam ??
+		article._count?.favorites ??
+		article.favorites.length;
 	const following = article.author.followers?.some(
 		(f) => f.followedId === currentUserId,
 	);
