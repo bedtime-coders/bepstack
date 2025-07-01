@@ -35,11 +35,9 @@ export const articlesPlugin = new Elysia({
 								},
 							}),
 							...(favoritedByUsername && {
-								favorites: {
+								favoritedBy: {
 									some: {
-										user: {
-											username: favoritedByUsername,
-										},
+										username: favoritedByUsername,
 									},
 								},
 							}),
