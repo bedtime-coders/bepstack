@@ -27,31 +27,19 @@ export const articlesPlugin = new Elysia({
 					},
 					auth: { currentUserId },
 				}) => {
-					// const [authorUser, favoritedUser] = await Promise.all([
-					// 	authorUsername
-					// 		? db.user.findFirst({ where: { username: authorUsername } })
-					// 		: undefined,
-					// 	favoritedByUsername
-					// 		? db.user.findFirst({ where: { username: favoritedByUsername } })
-					// 		: undefined,
-					// ]);
-
-					// if (
-					// 	(authorUsername && !authorUser) ||
-					// 	(favoritedByUsername && !favoritedUser)
-					// ) {
-					// 	return toArticlesResponse([]);
-					// }
-
-					const articles = await db.article.findMany({
+					const enrichedArticles = await db.article.findMany({
 						where: {
-							...(authorUser && {
-								authorId: authorUser.id,
+							...(authorUsername && {
+								author: {
+									username: authorUsername,
+								},
 							}),
-							...(favoritedUser && {
+							...(favoritedByUsername && {
 								favorites: {
 									some: {
-										userId: favoritedUser.id,
+										user: {
+											username: favoritedByUsername,
+										},
 									},
 								},
 							}),
@@ -68,93 +56,6 @@ export const articlesPlugin = new Elysia({
 						},
 						skip: offset,
 						take: limit,
-						include: {
-							author: true,
-							tags: true,
-						},
-					});
-
-					// if (articles.length === 0) return toArticlesResponse([]);
-					// if (!currentUserId) {
-					// 	return toArticlesResponse(articles);
-					// }
-
-					// const articleIds = articles.map((a) => a.id);
-					// const authorIds = articles.map((a) => a.author.id);
-
-					// // Step 3: Load extras (favorited, favorites count, following) - batched
-					// const [favoritesCounts, userFavorites, followStatus] =
-					// 	await Promise.all([
-					// 		db.favorite.groupBy({
-					// 			by: ["articleId"],
-					// 			where: {
-					// 				articleId: {
-					// 					in: articleIds,
-					// 				},
-					// 			},
-					// 			_count: true,
-					// 		}),
-					// 		db.favorite.findMany({
-					// 			where: {
-					// 				userId: currentUserId,
-					// 				articleId: {
-					// 					in: articleIds,
-					// 				},
-					// 			},
-					// 			select: {
-					// 				articleId: true,
-					// 			},
-					// 		}),
-					// 		db.follow.findMany({
-					// 			where: {
-					// 				followerId: currentUserId,
-					// 				followedId: {
-					// 					in: authorIds,
-					// 				},
-					// 			},
-					// 			select: {
-					// 				followedId: true,
-					// 			},
-					// 		}),
-					// 	]);
-
-					return toArticlesResponse(articles, { currentUserId });
-				},
-				{
-					detail: {
-						summary: "List Articles",
-						description:
-							"Returns most recent articles globally by default, provide tag, author or favorited query parameter to filter results",
-					},
-					query: ArticleQuery,
-					response: "ArticlesResponse",
-				},
-			)
-			.get(
-				"/:slug",
-				async ({ params: { slug }, auth: { currentUserId } }) => {
-					if (!currentUserId) {
-						const enrichedArticle = await db.article.findFirstOrThrow({
-							where: {
-								slug,
-							},
-							include: {
-								author: true,
-								tags: true,
-							},
-						});
-
-						return toResponse(enrichedArticle, {
-							favorited: false,
-							favoritesCount: 0,
-							following: false,
-						});
-					}
-
-					const enrichedArticle = await db.article.findFirstOrThrow({
-						where: {
-							slug,
-						},
 						include: {
 							author: {
 								include: {
@@ -173,11 +74,41 @@ export const articlesPlugin = new Elysia({
 							},
 						},
 					});
-					return toResponse(enrichedArticle, {
-						favorited: enrichedArticle.favorites.length > 0,
-						favoritesCount: enrichedArticle.favorites.length,
-						following: enrichedArticle.author.followers.length > 0,
+					return toArticlesResponse(enrichedArticles, { currentUserId });
+				},
+				{
+					detail: {
+						summary: "List Articles",
+						description:
+							"Returns most recent articles globally by default, provide tag, author or favorited query parameter to filter results",
+					},
+					query: ArticleQuery,
+					response: "ArticlesResponse",
+				},
+			)
+			.get(
+				"/:slug",
+				async ({ params: { slug }, auth: { currentUserId } }) => {
+					const enrichedArticle = await db.article.findFirstOrThrow({
+						where: { slug },
+						include: {
+							author: {
+								include: {
+									followers: true,
+								},
+							},
+							tags: true,
+							favorites: {
+								where: {
+									userId: currentUserId,
+								},
+							},
+							_count: {
+								select: { favorites: true },
+							},
+						},
 					});
+					return toResponse(enrichedArticle, { currentUserId });
 				},
 				{
 					detail: {
@@ -201,75 +132,41 @@ export const articlesPlugin = new Elysia({
 					query: { limit = DEFAULT_LIMIT, offset = DEFAULT_OFFSET },
 					auth: { currentUserId },
 				}) => {
-					// Step 1: Get followed user IDs
-					const followed = await db.follow.findMany({
-						where: { followerId: currentUserId },
-						select: {
-							followedId: true,
-						},
-					});
-
-					const followedIds = followed.map((f) => f.followedId);
-					if (followedIds.length === 0) return toArticlesResponse([]);
-
-					// Step 2: Get articles from followed authors
-					const articles = await db.article.findMany({
+					const enrichedArticles = await db.article.findMany({
 						where: {
-							authorId: { in: followedIds },
+							author: {
+								followers: {
+									some: {
+										followerId: currentUserId,
+									},
+								},
+							},
 						},
 						orderBy: { createdAt: "desc" },
 						skip: offset,
 						take: limit,
 						include: {
-							author: true,
-							tags: true,
-						},
-					});
-					if (articles.length === 0) return toArticlesResponse([]);
-
-					const articleIds = articles.map((a) => a.id);
-					const authorIds = articles.map((a) => a.author.id);
-
-					// Step 3: Get favorites count, user favorited, follow status
-					const [favoritesCounts, userFavorites, followStatus] =
-						await Promise.all([
-							db.favorite.groupBy({
-								by: ["articleId"],
-								where: {
-									articleId: {
-										in: articleIds,
+							author: {
+								include: {
+									followers: {
+										where: {
+											followerId: currentUserId,
+										},
 									},
 								},
-								_count: true,
-							}),
-							db.favorite.findMany({
+							},
+							tags: true,
+							favorites: {
 								where: {
 									userId: currentUserId,
-									articleId: {
-										in: articleIds,
-									},
 								},
-								select: {
-									articleId: true,
-								},
-							}),
-							db.follow.findMany({
-								where: {
-									followerId: currentUserId,
-									followedId: {
-										in: authorIds,
-									},
-								},
-								select: {
-									followedId: true,
-								},
-							}),
-						]);
-					return toArticlesResponse(articles, {
-						userFavorites,
-						followStatus,
-						favoritesCounts,
+							},
+							_count: {
+								select: { favorites: true },
+							},
+						},
 					});
+					return toArticlesResponse(enrichedArticles, { currentUserId });
 				},
 				{
 					detail: {
@@ -299,15 +196,25 @@ export const articlesPlugin = new Elysia({
 							},
 						},
 						include: {
-							author: true,
+							author: {
+								include: {
+									followers: true,
+								},
+							},
 							tags: true,
+							favorites: {
+								where: {
+									userId: currentUserId,
+								},
+							},
+							_count: {
+								select: { favorites: true },
+							},
 						},
 					});
 
 					return toResponse(createdArticle, {
-						favorited: false,
-						favoritesCount: 0,
-						following: false, // you can't follow yourself
+						currentUserId,
 					});
 				},
 				{
@@ -365,12 +272,13 @@ export const articlesPlugin = new Elysia({
 									userId: currentUserId,
 								},
 							},
+							_count: {
+								select: { favorites: true },
+							},
 						},
 					});
 					return toResponse(updatedArticle, {
-						favorited: updatedArticle.favorites.length > 0,
-						favoritesCount: updatedArticle.favorites.length,
-						following: updatedArticle.author.followers.length > 0,
+						currentUserId,
 					});
 				},
 				{
@@ -442,18 +350,16 @@ export const articlesPlugin = new Elysia({
 						},
 					});
 
-					if (article.authorId !== currentUserId) {
+					if (article.authorId === currentUserId) {
 						throw new RealWorldError(StatusCodes.FORBIDDEN, {
-							article: ["you can only favorite your own articles"],
+							article: ["you cannot favorite your own articles"],
 						});
 					}
 
 					// 2. Only upsert if not already favorited
 					if (article.favorites.length > 0) {
 						return toResponse(article, {
-							favorited: true,
-							favoritesCount: article._count.favorites,
-							following: article.author.followers.length > 0,
+							currentUserId,
 						});
 					}
 
@@ -472,9 +378,7 @@ export const articlesPlugin = new Elysia({
 					});
 
 					return toResponse(article, {
-						favorited: true,
-						favoritesCount: article._count.favorites + 1,
-						following: article.author.followers.length > 0,
+						currentUserId,
 					});
 				},
 				{
@@ -511,17 +415,15 @@ export const articlesPlugin = new Elysia({
 						},
 					});
 
-					if (existingArticle.authorId !== currentUserId) {
+					if (existingArticle.authorId === currentUserId) {
 						throw new RealWorldError(StatusCodes.FORBIDDEN, {
-							article: ["you can only unfavorite your own articles"],
+							article: ["you cannot unfavorite your own articles"],
 						});
 					}
 
 					if (existingArticle.favorites.length === 0) {
 						return toResponse(existingArticle, {
-							favorited: false,
-							favoritesCount: existingArticle._count.favorites,
-							following: false, // you can't follow yourself
+							currentUserId,
 						});
 					}
 
@@ -537,9 +439,7 @@ export const articlesPlugin = new Elysia({
 
 					// 3. Return the updated article
 					return toResponse(existingArticle, {
-						favorited: false,
-						favoritesCount: existingArticle._count.favorites - 1,
-						following: false, // you can't follow yourself
+						currentUserId,
 					});
 				},
 				{
