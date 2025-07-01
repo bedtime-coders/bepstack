@@ -1,11 +1,3 @@
-/**
- * Type helper to extract static types from Elysia models
- * @example
- * ```ts
- * const { models } = usersModel;
- * type User = ModelsStatic<typeof models>["User"];
- * ```
- */
 type SchemaWithStatic = { static: unknown };
 
 /**
