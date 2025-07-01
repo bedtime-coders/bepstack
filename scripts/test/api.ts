@@ -12,6 +12,11 @@ const POSTMAN_COLLECTION =
 	env.POSTMAN_COLLECTION ||
 	"https://raw.githubusercontent.com/gothinkster/realworld/refs/heads/main/api/Conduit.postman_collection.json";
 
+// Performance options
+const SKIP_DB_RESET = env.SKIP_DB_RESET === "true";
+const DELAY_REQUEST = Number.parseInt(env.DELAY_REQUEST || "50", 10); // Reduced from 500ms to 50ms
+// Note: Newman doesn't support parallel execution, but we can reduce delays
+
 console.info(chalk.gray("Checking Bedstack health"));
 
 // first query the api to see if it's running
@@ -33,24 +38,30 @@ try {
 	process.exit(1);
 }
 
-console.info(chalk.gray("Resetting database"));
+if (!SKIP_DB_RESET) {
+	console.info(chalk.gray("Resetting database"));
 
-try {
-	await $`bun run db:reset --force`.quiet();
-} catch (error) {
-	if (!(error instanceof Bun.$.ShellError)) throw error;
-	console.error(chalk.red(`Database reset failed with code ${error.exitCode}`));
-	console.error(error.stdout.toString());
-	console.error(error.stderr.toString());
-	process.exit(1);
+	try {
+		await $`bun run db:reset --force`.quiet();
+	} catch (error) {
+		if (!(error instanceof Bun.$.ShellError)) throw error;
+		console.error(
+			chalk.red(`Database reset failed with code ${error.exitCode}`),
+		);
+		console.error(error.stdout.toString());
+		console.error(error.stderr.toString());
+		process.exit(1);
+	}
+} else {
+	console.info(chalk.yellow("Skipping database reset (SKIP_DB_RESET=true)"));
 }
 
-console.info(chalk.gray("Running API tests"));
+console.info(chalk.gray(`Running API tests with ${DELAY_REQUEST}ms delay`));
 
 newman.run(
 	{
 		collection: POSTMAN_COLLECTION,
-		delayRequest: 500,
+		delayRequest: DELAY_REQUEST,
 		reporters: "cli",
 		globals: {
 			values: [
