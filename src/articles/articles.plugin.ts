@@ -19,7 +19,7 @@ export const articlesPlugin = new Elysia({
 				"/",
 				async ({
 					query: {
-						tag,
+						tag: tagName,
 						author: authorUsername,
 						favorited: favoritedByUsername,
 						limit = DEFAULT_LIMIT,
@@ -27,21 +27,21 @@ export const articlesPlugin = new Elysia({
 					},
 					auth: { currentUserId },
 				}) => {
-					const [authorUser, favoritedUser] = await Promise.all([
-						authorUsername
-							? db.user.findFirst({ where: { username: authorUsername } })
-							: undefined,
-						favoritedByUsername
-							? db.user.findFirst({ where: { username: favoritedByUsername } })
-							: undefined,
-					]);
+					// const [authorUser, favoritedUser] = await Promise.all([
+					// 	authorUsername
+					// 		? db.user.findFirst({ where: { username: authorUsername } })
+					// 		: undefined,
+					// 	favoritedByUsername
+					// 		? db.user.findFirst({ where: { username: favoritedByUsername } })
+					// 		: undefined,
+					// ]);
 
-					if (
-						(authorUsername && !authorUser) ||
-						(favoritedByUsername && !favoritedUser)
-					) {
-						return toArticlesResponse([]);
-					}
+					// if (
+					// 	(authorUsername && !authorUser) ||
+					// 	(favoritedByUsername && !favoritedUser)
+					// ) {
+					// 	return toArticlesResponse([]);
+					// }
 
 					const articles = await db.article.findMany({
 						where: {
@@ -55,10 +55,10 @@ export const articlesPlugin = new Elysia({
 									},
 								},
 							}),
-							...(tag && {
+							...(tagName && {
 								tags: {
 									some: {
-										name: tag,
+										name: tagName,
 									},
 								},
 							}),
@@ -74,55 +74,51 @@ export const articlesPlugin = new Elysia({
 						},
 					});
 
-					if (articles.length === 0) return toArticlesResponse([]);
-					if (!currentUserId) {
-						return toArticlesResponse(articles);
-					}
+					// if (articles.length === 0) return toArticlesResponse([]);
+					// if (!currentUserId) {
+					// 	return toArticlesResponse(articles);
+					// }
 
-					const articleIds = articles.map((a) => a.id);
-					const authorIds = articles.map((a) => a.author.id);
+					// const articleIds = articles.map((a) => a.id);
+					// const authorIds = articles.map((a) => a.author.id);
 
-					// Step 3: Load extras (favorited, favorites count, following) - batched
-					const [favoritesCounts, userFavorites, followStatus] =
-						await Promise.all([
-							db.favorite.groupBy({
-								by: ["articleId"],
-								where: {
-									articleId: {
-										in: articleIds,
-									},
-								},
-								_count: true,
-							}),
-							db.favorite.findMany({
-								where: {
-									userId: currentUserId,
-									articleId: {
-										in: articleIds,
-									},
-								},
-								select: {
-									articleId: true,
-								},
-							}),
-							db.follow.findMany({
-								where: {
-									followerId: currentUserId,
-									followedId: {
-										in: authorIds,
-									},
-								},
-								select: {
-									followedId: true,
-								},
-							}),
-						]);
+					// // Step 3: Load extras (favorited, favorites count, following) - batched
+					// const [favoritesCounts, userFavorites, followStatus] =
+					// 	await Promise.all([
+					// 		db.favorite.groupBy({
+					// 			by: ["articleId"],
+					// 			where: {
+					// 				articleId: {
+					// 					in: articleIds,
+					// 				},
+					// 			},
+					// 			_count: true,
+					// 		}),
+					// 		db.favorite.findMany({
+					// 			where: {
+					// 				userId: currentUserId,
+					// 				articleId: {
+					// 					in: articleIds,
+					// 				},
+					// 			},
+					// 			select: {
+					// 				articleId: true,
+					// 			},
+					// 		}),
+					// 		db.follow.findMany({
+					// 			where: {
+					// 				followerId: currentUserId,
+					// 				followedId: {
+					// 					in: authorIds,
+					// 				},
+					// 			},
+					// 			select: {
+					// 				followedId: true,
+					// 			},
+					// 		}),
+					// 	]);
 
-					return toArticlesResponse(articles, {
-						userFavorites,
-						followStatus,
-						favoritesCounts,
-					});
+					return toArticlesResponse(articles, { currentUserId });
 				},
 				{
 					detail: {
