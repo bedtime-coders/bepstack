@@ -1,4 +1,4 @@
-import type { Comment, Follow, User } from "@prisma/client";
+import type { Comment, User } from "@prisma/client";
 
 /**
  * Parameters for the toCommentResponse function
@@ -20,7 +20,7 @@ type ToCommentResponseParams = {
 export const toCommentResponse = (
 	enrichedComment: Comment & {
 		author: User & {
-			followers?: Follow[];
+			followedBy?: User[];
 		};
 	},
 	{ currentUserId }: ToCommentResponseParams = {},
@@ -40,9 +40,9 @@ export const toCommentResponse = (
 } => {
 	let following = false;
 
-	if (currentUserId && enrichedComment.author.followers) {
-		following = enrichedComment.author.followers.some(
-			(follower) => follower.followerId === currentUserId,
+	if (currentUserId && enrichedComment.author.followedBy) {
+		following = enrichedComment.author.followedBy.some(
+			(follower) => follower.id === currentUserId,
 		);
 	}
 
@@ -74,7 +74,7 @@ export function toCommentsResponse(
 	commentsWithAuthors: Array<
 		Comment & {
 			author: User & {
-				followers?: Follow[];
+				followedBy?: User[];
 			};
 		}
 	>,
