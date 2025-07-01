@@ -329,52 +329,47 @@ export const articlesPlugin = new Elysia({
 			.post(
 				"/:slug/favorite",
 				async ({ params: { slug }, auth: { currentUserId } }) => {
-					// 1. Fetch everything in one go
-					const article = await db.article.findFirstOrThrow({
-						where: { slug },
-						include: {
-							author: {
-								include: {
-									followers: {
-										where: { followerId: currentUserId },
+					return await db.$transaction(async (tx) => {
+						// 1. Get the article
+						const article = await tx.article.findFirstOrThrow({
+							where: { slug },
+							include: {
+								author: {
+									include: {
+										followers: {
+											where: { followerId: currentUserId },
+										},
 									},
 								},
+								tags: true,
+								favorites: {
+									where: { userId: currentUserId },
+								},
+								_count: {
+									select: { favorites: true },
+								},
 							},
-							tags: true,
-							favorites: {
-								where: { userId: currentUserId },
-							},
-							_count: {
-								select: { favorites: true },
-							},
-						},
-					});
-
-					// 2. Only upsert if not already favorited
-					if (article.favorites.length > 0) {
-						return toResponse(article, {
-							currentUserId,
 						});
-					}
 
-					await db.favorite.upsert({
-						where: {
-							userId_articleId: {
+						// 2. Check if already favorited
+						if (article.favorites.length > 0) {
+							return toResponse(article, { currentUserId });
+						}
+
+						// 3. Create the favorite
+						await tx.favorite.create({
+							data: {
 								userId: currentUserId,
 								articleId: article.id,
 							},
-						},
-						update: {},
-						create: {
-							userId: currentUserId,
-							articleId: article.id,
-						},
-					});
+						});
 
-					return toResponse(article, {
-						currentUserId,
-						favorited: true,
-						favoritesCount: article._count.favorites + 1,
+						// 4. Return with updated counts
+						return toResponse(article, {
+							currentUserId,
+							favorited: true,
+							favoritesCount: article._count.favorites + 1,
+						});
 					});
 				},
 				{
@@ -388,47 +383,49 @@ export const articlesPlugin = new Elysia({
 			.delete(
 				"/:slug/favorite",
 				async ({ params: { slug }, auth: { currentUserId } }) => {
-					// 1. Fetch everything in one go
-					const existingArticle = await db.article.findFirstOrThrow({
-						where: { slug },
-						include: {
-							author: {
-								include: {
-									followers: {
-										where: { followerId: currentUserId },
+					return await db.$transaction(async (tx) => {
+						// 1. Get the article
+						const article = await tx.article.findFirstOrThrow({
+							where: { slug },
+							include: {
+								author: {
+									include: {
+										followers: {
+											where: { followerId: currentUserId },
+										},
 									},
 								},
-							},
-							tags: true,
-							favorites: {
-								where: {
-									userId: currentUserId,
+								tags: true,
+								favorites: {
+									where: { userId: currentUserId },
+								},
+								_count: {
+									select: { favorites: true },
 								},
 							},
-							_count: {
-								select: { favorites: true },
+						});
+
+						// 2. Check if not favorited
+						if (article.favorites.length === 0) {
+							return toResponse(article, { currentUserId });
+						}
+
+						// 3. Delete the favorite
+						await tx.favorite.delete({
+							where: {
+								userId_articleId: {
+									userId: currentUserId,
+									articleId: article.id,
+								},
 							},
-						},
-					});
+						});
 
-					if (existingArticle.favorites.length === 0) {
-						return toResponse(existingArticle, { currentUserId });
-					}
-
-					// 2. Delete the favorite
-					await db.favorite.delete({
-						where: {
-							userId_articleId: {
-								userId: currentUserId,
-								articleId: existingArticle.id,
-							},
-						},
-					});
-
-					return toResponse(existingArticle, {
-						currentUserId,
-						favorited: false,
-						favoritesCount: existingArticle._count.favorites - 1,
+						// 4. Return with updated counts
+						return toResponse(article, {
+							currentUserId,
+							favorited: false,
+							favoritesCount: article._count.favorites - 1,
+						});
 					});
 				},
 				{
