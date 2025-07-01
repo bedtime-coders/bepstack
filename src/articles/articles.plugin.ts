@@ -207,9 +207,7 @@ export const articlesPlugin = new Elysia({
 				}) => {
 					// Step 1: Get followed user IDs
 					const followed = await db.follow.findMany({
-						where: {
-							followerId: currentUserId,
-						},
+						where: { followerId: currentUserId },
 						select: {
 							followedId: true,
 						},
