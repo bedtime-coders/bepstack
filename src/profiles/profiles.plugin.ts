@@ -26,14 +26,14 @@ export const profiles = new Elysia({ tags: ["Profiles"] })
 						const profile = await db.user.findFirstOrThrow({
 							where: { username },
 						});
-						const following = Boolean(
-							await db.user.findFirst({
-								where: {
-									id: currentUserId,
-									following: { some: { id: profile.id } },
-								},
-							}),
-						);
+						const [{ exists: following } = { exists: false }] =
+							await db.$queryRaw<{ exists: boolean }[]>`
+						SELECT EXISTS (
+							SELECT 1
+							FROM "_UserFollows"
+							WHERE "A" = ${currentUserId} AND "B" = ${profile.id}
+						) AS "exists"
+					`;
 						return toResponse(profile, following);
 					},
 					{
