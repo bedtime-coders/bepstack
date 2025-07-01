@@ -1,7 +1,7 @@
 {
 	"name": "bepstack",
 	"title": "Bepstack",
-	"description": "Bepstack = Bun + Elysia + Prisma = ❤️",
+	"description": "Bun + Elysia + Prisma = ❤️",
 	"type": "module",
 	"scripts": {
 		"dev": "bun run --watch src/index.ts",
