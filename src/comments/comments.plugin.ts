@@ -28,11 +28,11 @@ export const commentsPlugin = new Elysia({
 						include: {
 							author: {
 								include: {
-									...(currentUserId && {
-										followers: {
-											where: { followerId: currentUserId },
+									followedBy: {
+										where: {
+											id: currentUserId,
 										},
-									}),
+									},
 								},
 							},
 						},
