@@ -9,32 +9,34 @@ datasource db {
 }
 
 model Article {
-  id          String        @id @default(cuid())
-  slug        String        @unique
+  id          String    @id @default(cuid())
+  slug        String    @unique
   title       String
   description String
   body        String
-  authorId    String        @map("author_id")
-  author      User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId    String    @map("author_id")
+  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
   tags        Tag[]
   comments    Comment[]
-  favoritedBy User[] @relation("UserFavorites")
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
+  favoritedBy User[]    @relation("UserFavorites")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
   @@index([authorId])
   @@index([createdAt])
   @@map("articles")
 }
 
 model Comment {
-  id         String   @id @default(cuid())
-  body       String
-  articleId  String   @map("article_id")
-  authorId   String   @map("author_id")
-  article    Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  author     User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  id        String   @id @default(cuid())
+  body      String
+  articleId String   @map("article_id")
+  authorId  String   @map("author_id")
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
   @@index([articleId])
   @@index([authorId])
   @@index([createdAt])
@@ -42,26 +44,28 @@ model Comment {
 }
 
 model Tag {
-  id          String        @id @default(cuid())
-  name        String        @unique
-  articles    Article[]
+  id       String    @id @default(cuid())
+  name     String    @unique
+  articles Article[]
+
   @@index([name])
   @@map("tags")
 }
 
 model User {
-  id        String      @id @default(cuid())
-  email     String      @unique
-  username  String      @unique
-  bio       String?
-  image     String?
-  password  String
+  id         String    @id @default(cuid())
+  email      String    @unique
+  username   String    @unique
+  bio        String?
+  image      String?
+  password   String
   articles   Article[]
   comments   Comment[]
   favorites  Article[] @relation("UserFavorites")
   following  User[]    @relation("UserFollows")
-  followedBy  User[]    @relation("UserFollows")
-  createdAt DateTime    @default(now()) @map("created_at")
-  updatedAt DateTime    @updatedAt @map("updated_at")
+  followedBy User[]    @relation("UserFollows")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
   @@map("users")
 }
