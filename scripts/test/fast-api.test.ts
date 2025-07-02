@@ -10,7 +10,7 @@ const { api } = treaty(app);
 const testUser = {
 	email: "test@test.com",
 	username: "testuser",
-	password: "password123",
+	password: "Password123",
 };
 
 const testArticle = {
@@ -43,7 +43,9 @@ describe("Fast API Tests with Eden Treaty", () => {
 			expect(data?.user).toBeDefined();
 			expect(data?.user.username).toBe(testUser.username);
 
-			authToken = data!.user.token;
+			if (data?.user?.token) {
+				authToken = data.user.token;
+			}
 		});
 
 		it("should login a user", async () => {
@@ -72,13 +74,22 @@ describe("Fast API Tests with Eden Treaty", () => {
 
 	describe("Articles", () => {
 		it("should create an article", async () => {
-			const { data, error } = await api.articles.post({
-				article: testArticle,
-			});
+			const { data, error } = await api.articles.post(
+				{
+					article: testArticle,
+				},
+				{
+					headers: {
+						Authorization: `Token ${authToken}`,
+					},
+				},
+			);
 
 			expect(error).toBeNull();
 			expect(data?.article.title).toBe(testArticle.title);
-			articleSlug = data!.article.slug;
+			if (data?.article?.slug) {
+				articleSlug = data.article.slug;
+			}
 		});
 
 		it("should get all articles", async () => {
