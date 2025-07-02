@@ -37,6 +37,7 @@ const testComment = {
 let authToken: string;
 let authToken2: string;
 let articleSlug: string;
+let commentId: number | undefined;
 
 beforeAll(async () => {
 	// Reset database
@@ -128,6 +129,54 @@ describe("Fast API Tests with Eden Treaty", () => {
 			});
 			expect(user2Error).toBeNull();
 			expect(user2Data?.user.email).toBe(testUser2.email);
+		});
+
+		it("should not register user with missing fields", async () => {
+			const { data, error } = await api.users.post({
+				user: { email: "", password: "", username: "" },
+			});
+			expect(error).toBeDefined();
+			expect(data).toBeNull();
+		});
+
+		it("should not register user with duplicate email", async () => {
+			const { data, error } = await api.users.post({
+				user: {
+					email: testUser.email,
+					password: testUser.password,
+					username: "anotheruser",
+				},
+			});
+			expect(error).toBeDefined();
+			expect(data).toBeNull();
+		});
+
+		it("should not register user with duplicate username", async () => {
+			const { data, error } = await api.users.post({
+				user: {
+					email: "another@email.com",
+					password: testUser.password,
+					username: testUser.username,
+				},
+			});
+			expect(error).toBeDefined();
+			expect(data).toBeNull();
+		});
+
+		it("should not login with wrong password", async () => {
+			const { data, error } = await api.users.login.post({
+				user: { email: testUser.email, password: "wrongpassword" },
+			});
+			expect(error).toBeDefined();
+			expect(data).toBeNull();
+		});
+
+		it("should not login with missing fields", async () => {
+			const { data, error } = await api.users.login.post({
+				user: { email: "", password: "" },
+			});
+			expect(error).toBeDefined();
+			expect(data).toBeNull();
 		});
 	});
 
@@ -334,6 +383,62 @@ describe("Fast API Tests with Eden Treaty", () => {
 			expect(data?.article).toBeDefined();
 			expect(data?.article.favorited).toBe(false);
 		});
+
+		it("should not get non-existent article by slug", async () => {
+			const { data, error } = await api
+				.articles({ slug: "non-existent-slug" })
+				.get();
+			expect(error).toBeDefined();
+			expect(data).toBeNull();
+		});
+
+		it("should not update article as non-author", async () => {
+			const { data, error } = await api.articles({ slug: articleSlug }).put(
+				{ article: { body: "hacked" } },
+				{
+					headers: {
+						Authorization: `Token ${authToken2}`,
+					},
+				},
+			);
+			expect(error).toBeDefined();
+			expect(data).toBeNull();
+		});
+
+		it("should not delete article as non-author", async () => {
+			const { error } = await api
+				.articles({ slug: articleSlug })
+				.delete(undefined, {
+					headers: {
+						Authorization: `Token ${authToken2}`,
+					},
+				});
+			expect(error).toBeDefined();
+		});
+
+		it("should not favorite article as unauthenticated user", async () => {
+			const { data, error } = await api
+				.articles({ slug: articleSlug })
+				.favorite.post();
+			expect(error).toBeDefined();
+			expect(data).toBeNull();
+		});
+
+		it("should not unfavorite article as unauthenticated user", async () => {
+			const { data, error } = await api
+				.articles({ slug: articleSlug })
+				.favorite.delete();
+			expect(error).toBeDefined();
+			expect(data).toBeNull();
+		});
+
+		it("should not create article with missing fields", async () => {
+			const { data, error } = await api.articles.post({
+				article: { title: "", description: "", body: "", tagList: [] },
+			});
+			expect(error).toBeDefined();
+			expect(data).toBeNull();
+		});
 	});
 
 	describe("Comments", () => {
@@ -357,6 +462,10 @@ describe("Fast API Tests with Eden Treaty", () => {
 			expect(data.comment).toBeDefined();
 			expect(data.comment.body).toBe(testComment.body);
 			expect(data.comment).toHaveProperty("id");
+			commentId =
+				typeof data.comment.id === "number"
+					? data.comment.id
+					: Number.parseInt(data.comment.id, 10);
 			expect(data.comment).toHaveProperty("createdAt");
 			expect(data.comment).toHaveProperty("updatedAt");
 			expect(data.comment).toHaveProperty("author");
@@ -402,9 +511,59 @@ describe("Fast API Tests with Eden Treaty", () => {
 		});
 
 		it("should delete comment for article", async () => {
-			// For now, we'll skip the delete comment test due to dynamic ID routing
-			// This would require a different API structure to test properly
-			expect(true).toBe(true);
+			expect(commentId).toBeDefined();
+			const { error } = await api
+				.articles({ slug: articleSlug })
+				.comments({ id: commentId! })
+				.delete(undefined, {
+					headers: {
+						Authorization: `Token ${authToken}`,
+					},
+				});
+			expect(error).toBeNull();
+
+			// Optionally, verify the comment is gone
+			const { data } = await api.articles({ slug: articleSlug }).comments.get({
+				headers: {
+					Authorization: `Token ${authToken}`,
+				},
+			});
+			expect(
+				data?.comments.find((c: any) => c.id === commentId),
+			).toBeUndefined();
+		});
+
+		it("should not create comment as unauthenticated user", async () => {
+			const { data, error } = await api
+				.articles({ slug: articleSlug })
+				.comments.post({ comment: testComment });
+			expect(error).toBeDefined();
+			expect(data).toBeNull();
+		});
+
+		it("should not delete comment as non-author", async () => {
+			expect(commentId).toBeDefined();
+			const { error } = await api
+				.articles({ slug: articleSlug })
+				.comments({ id: commentId! })
+				.delete(undefined, {
+					headers: {
+						Authorization: `Token ${authToken2}`,
+					},
+				});
+			expect(error).toBeDefined();
+		});
+
+		it("should not delete non-existent comment", async () => {
+			const { error } = await api
+				.articles({ slug: articleSlug })
+				.comments({ id: 999999 })
+				.delete(undefined, {
+					headers: {
+						Authorization: `Token ${authToken}`,
+					},
+				});
+			expect(error).toBeDefined();
 		});
 	});
 
@@ -455,6 +614,49 @@ describe("Fast API Tests with Eden Treaty", () => {
 			expect(data?.profile).toBeDefined();
 			expect(data?.profile.username).toBe(testUser2.username);
 			expect(data?.profile.following).toBe(false);
+		});
+
+		it("should not follow profile as unauthenticated user", async () => {
+			const { data, error } = await api
+				.profiles({ username: testUser2.username })
+				.follow.post();
+			expect(error).toBeDefined();
+			expect(data).toBeNull();
+		});
+
+		it("should not unfollow profile as unauthenticated user", async () => {
+			const { data, error } = await api
+				.profiles({ username: testUser2.username })
+				.follow.delete();
+			expect(error).toBeDefined();
+			expect(data).toBeNull();
+		});
+
+		it("should not follow non-existent user", async () => {
+			const { data, error } = await api
+				.profiles({ username: "nonexistentuser" })
+				.follow.post(
+					{},
+					{
+						headers: {
+							Authorization: `Token ${authToken}`,
+						},
+					},
+				);
+			expect(error).toBeDefined();
+			expect(data).toBeNull();
+		});
+
+		it("should not unfollow non-existent user", async () => {
+			const { data, error } = await api
+				.profiles({ username: "nonexistentuser" })
+				.follow.delete(undefined, {
+					headers: {
+						Authorization: `Token ${authToken}`,
+					},
+				});
+			expect(error).toBeDefined();
+			expect(data).toBeNull();
 		});
 	});
 
