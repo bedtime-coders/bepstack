@@ -2,7 +2,6 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { treaty } from "@elysiajs/eden";
 import { app } from "@/core/app";
 import { db } from "@/core/db";
-import { expectSuccess, expectToBeDefined } from "@/shared/utils/tests.utils";
 
 // Create type-safe API client with Eden Treaty
 const { api } = treaty(app);
@@ -21,8 +20,6 @@ const testUser2 = {
 };
 
 let authToken: string;
-let authToken2: string;
-
 beforeAll(async () => {
 	// Reset database
 	await db.$executeRaw`TRUNCATE TABLE users, articles, tags, comments CASCADE`;
@@ -32,8 +29,7 @@ beforeAll(async () => {
 	authToken = reg1.data?.user?.token ?? "";
 
 	// Register second user
-	const reg2 = await api.users.post({ user: testUser2 });
-	authToken2 = reg2.data?.user?.token ?? "";
+	await api.users.post({ user: testUser2 });
 
 	// Login first user (to ensure token is valid)
 	const login1 = await api.users.login.post({
@@ -42,10 +38,9 @@ beforeAll(async () => {
 	authToken = login1.data?.user?.token ?? "";
 
 	// Login second user (to ensure token is valid)
-	const login2 = await api.users.login.post({
+	await api.users.login.post({
 		user: { email: testUser2.email, password: testUser2.password },
 	});
-	authToken2 = login2.data?.user?.token ?? "";
 });
 
 describe("Profile Tests", () => {

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { treaty } from "@elysiajs/eden";
 import { app } from "@/core/app";
 import { db } from "@/core/db";
-import { expectSuccess, expectToBeDefined } from "@/shared/utils/tests.utils";
+import { expectToBeDefined } from "@/shared/utils";
 
 const { api } = treaty(app);
 
