@@ -136,20 +136,95 @@ export function formatError(error: unknown): string {
 	return String(error);
 }
 
-export async function resetDb() {
-	// Use raw SQL to properly truncate all tables including implicit many-to-many tables
-	await db.$executeRawUnsafe(`
-		TRUNCATE TABLE
+/**
+ * Get all table names from the database schema
+ * This dynamically discovers tables to avoid hard-coding table names
+ */
+async function getTableNames(): Promise<string[]> {
+	try {
+		// Query to get all table names from the current schema
+		const result = await db.$queryRaw<{ tablename: string }[]>`
+			SELECT tablename 
+			FROM pg_tables 
+			WHERE schemaname = 'public' 
+			ORDER BY tablename;
+		`;
+
+		return result.map((row) => row.tablename);
+	} catch (error) {
+		console.warn("⚠️ Could not dynamically discover table names:", error);
+		console.warn("Falling back to hard-coded table names");
+
+		// Fallback to known table names from the schema
+		return [
 			"_UserFavorites",
 			"_UserFollows",
 			"_ArticleToTag",
-			comments,
-			articles,
-			tags,
-			users
-		RESTART IDENTITY
-		CASCADE;
-	`);
+			"comments",
+			"articles",
+			"tags",
+			"users",
+		];
+	}
+}
+
+/**
+ * Reset the database by truncating all tables
+ *
+ * This function truncates all tables in the database to ensure a clean state for tests.
+ * It handles both explicit tables and implicit many-to-many tables created by Prisma.
+ *
+ * Tables truncated (dynamically discovered):
+ * - users: User accounts and authentication data
+ * - articles: Article content and metadata
+ * - comments: Article comments
+ * - tags: Article tags
+ * - _UserFavorites: Many-to-many relationship for user article favorites
+ * - _UserFollows: Many-to-many relationship for user follows
+ * - _ArticleToTag: Many-to-many relationship for article tags
+ *
+ * @param options.verbose - Whether to log success messages (default: false)
+ * @throws {Error} If database truncation fails
+ */
+export async function resetDb(options: { verbose?: boolean } = {}) {
+	try {
+		// Dynamically discover table names to avoid hard-coding
+		const tableNames = await getTableNames();
+
+		if (tableNames.length === 0) {
+			throw new Error("No tables found in database. Run migrations first.");
+		}
+
+		// Build the TRUNCATE statement dynamically
+		const tablesList = tableNames.map((name) => `"${name}"`).join(",\n\t\t\t");
+
+		// Use raw SQL to properly truncate all tables including implicit many-to-many tables
+		// RESTART IDENTITY resets auto-increment sequences
+		// CASCADE ensures foreign key constraints are handled properly
+		await db.$executeRawUnsafe(`
+			TRUNCATE TABLE
+				${tablesList}
+			RESTART IDENTITY
+			CASCADE;
+		`);
+
+		if (options.verbose) {
+			console.log(`✅ Database reset: truncated ${tableNames.length} tables`);
+		}
+	} catch (error) {
+		console.error("❌ Database reset failed:", error);
+		console.error("This may indicate:");
+		console.error("  - Database connection issues");
+		console.error("  - Schema changes that require migration");
+		console.error("  - Permission issues");
+		console.error("  - Tables don't exist (run migrations first)");
+		console.error("  - Foreign key constraint violations");
+
+		// Re-throw the error to fail the test
+		throw new Error(
+			`Database reset failed: ${error instanceof Error ? error.message : String(error)}`,
+		);
+	}
 }
 
 export async function registerAndLoginUser(user: {
