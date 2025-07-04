@@ -18,7 +18,7 @@ services:
       POSTGRES_PASSWORD: yam123
       POSTGRES_DB: bedstack_test
     ports:
-      - "${DB_PORT:-5433}:5432"
+      - "${DB_TEST_PORT:-5433}:5432"
     volumes:
       - postgres-test-data:/var/lib/postgresql/data
 
