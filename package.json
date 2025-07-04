@@ -13,7 +13,7 @@
 		"typecheck": "tsc --noEmit",
 		"clean": "rimraf node_modules bun.lockb dist",
 		"test:api": "bun run scripts/test/api",
-		"test": "bun test --watch",
+		"test": "bun test --preload ./src/tests/setup.ts --watch",
 		"db": "docker compose up",
 		"db:dev": "prisma dev",
 		"db:pull": "prisma db pull",
