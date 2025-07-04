@@ -12,7 +12,7 @@
 		"check:errors": "biome check --diagnostic-level=error",
 		"typecheck": "tsc --noEmit",
 		"clean": "rimraf node_modules bun.lockb dist",
-		"test:legacy": "bun run scripts/test/api",
+		"test:api": "bun run scripts/test/api",
 		"test": "bun test --watch",
 		"db": "docker compose up",
 		"db:dev": "prisma dev",

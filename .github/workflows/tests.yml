@@ -90,8 +90,6 @@ jobs:
           timeout 30s bash -c 'until curl -s http://localhost:3000/api/health > /dev/null; do sleep 1; done'
       - name: Run API Tests
         run: bun run test:api
-      - name: Run Unit Tests
-        run: bun run test:unit
 
   test-typesafety:
     runs-on: ubuntu-latest

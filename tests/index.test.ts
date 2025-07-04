@@ -7,6 +7,11 @@ function expectToBeDefined<T>(value: T | null | undefined): asserts value is T {
 	expect(value).toBeDefined();
 }
 
+function expectSuccess(response: { error: unknown; data: unknown }) {
+	expect(response.error).toBeNull();
+	expect(response.data).toBeDefined();
+}
+
 // Create type-safe API client with Eden Treaty
 const { api } = treaty(app);
 
@@ -20,6 +25,18 @@ const testUser = {
 const testUser2 = {
 	email: "celeb@test.com",
 	username: "celeb_testuser",
+	password: "Password123",
+};
+
+const newUser3 = {
+	email: "newuser@test.com",
+	username: "newuser",
+	password: "Password123",
+};
+
+const newUser4 = {
+	email: "newuser2@test.com",
+	username: "newuser2",
 	password: "Password123",
 };
 
@@ -37,7 +54,6 @@ const testComment = {
 let authToken: string;
 let authToken2: string;
 let articleSlug: string;
-let commentId: number | undefined;
 
 beforeAll(async () => {
 	// Reset database
@@ -70,6 +86,64 @@ describe("Fast API Tests with Eden Treaty", () => {
 	});
 
 	describe("Authentication", () => {
+		it("should register user", async () => {
+			const newUser = {
+				email: "basic@test.com",
+				username: "basicuser",
+				password: "Password123",
+			};
+
+			const { data, error } = await api.users.post({
+				user: newUser,
+			});
+
+			expect(error).toBeNull();
+			expect(data?.user).toBeDefined();
+			expect(data?.user.email).toBe(newUser.email);
+			expect(data?.user.username).toBe(newUser.username);
+			expect(data?.user).toHaveProperty("bio");
+			expect(data?.user).toHaveProperty("image");
+			expect(data?.user).toHaveProperty("token");
+		});
+
+		it("should login user", async () => {
+			const { data, error } = await api.users.login.post({
+				user: { email: testUser.email, password: testUser.password },
+			});
+
+			expect(error).toBeNull();
+			expect(data?.user).toBeDefined();
+			expect(data?.user.email).toBe(testUser.email);
+			expect(data?.user.username).toBe(testUser.username);
+			expect(data?.user).toHaveProperty("bio");
+			expect(data?.user).toHaveProperty("image");
+			expect(data?.user).toHaveProperty("token");
+		});
+
+		it("should login and remember token", async () => {
+			const { data, error } = await api.users.login.post({
+				user: { email: testUser2.email, password: testUser2.password },
+			});
+
+			expect(error).toBeNull();
+			expect(data?.user).toBeDefined();
+			expect(data?.user.email).toBe(testUser2.email);
+			expect(data?.user.username).toBe(testUser2.username);
+			expect(data?.user).toHaveProperty("bio");
+			expect(data?.user).toHaveProperty("image");
+			expect(data?.user).toHaveProperty("token");
+
+			// Verify token is valid by using it to get current user
+			const token = data?.user?.token;
+			expect(token).toBeDefined();
+
+			const { data: userData, error: userError } = await api.user.get({
+				headers: { Authorization: `Token ${token}` },
+			});
+			expect(userError).toBeNull();
+			expect(userData?.user.email).toBe(testUser2.email);
+		});
+
 		it("should get current user", async () => {
 			const { data, error } = await api.user.get({
 				headers: {
@@ -140,15 +214,17 @@ describe("Fast API Tests with Eden Treaty", () => {
 		});
 
 		it("should not register user with duplicate email", async () => {
-			const { data, error } = await api.users.post({
-				user: {
-					email: testUser.email,
-					password: testUser.password,
-					username: "anotheruser",
-				},
+			// Create newUser 3, expect success
+			const res = await api.users.post({
+				user: newUser3,
 			});
-			expect(error).toBeDefined();
-			expect(data).toBeNull();
+			expectSuccess(res);
+			// Create newUser 4, but use newUser3's email
+			const res2 = await api.users.post({
+				user: { ...newUser4, email: newUser3.email },
+			});
+			expect(res2.error).toBeDefined();
+			expect(res2.data).toBeNull();
 		});
 
 		it("should not register user with duplicate username", async () => {
@@ -300,6 +376,35 @@ describe("Fast API Tests with Eden Treaty", () => {
 			expect(error).toBeNull();
 			expect(data?.articles).toBeDefined();
 			expect(data?.articles.length).toBeGreaterThan(0);
+		});
+
+		it("should get articles by tag with auth", async () => {
+			const { data, error } = await api.articles.get({
+				headers: {
+					Authorization: `Token ${authToken}`,
+				},
+				query: { tag: "test" },
+			});
+
+			expect(error).toBeNull();
+			expectToBeDefined(data);
+			expect(data.articles).toBeDefined();
+			expect(Array.isArray(data.articles)).toBe(true);
+			if (data.articles.length > 0) {
+				const article = data.articles[0];
+				expectToBeDefined(article);
+				expect(article).toHaveProperty("title");
+				expect(article).toHaveProperty("slug");
+				expect(article).toHaveProperty("createdAt");
+				expect(article).toHaveProperty("updatedAt");
+				expect(article).toHaveProperty("description");
+				expect(article).toHaveProperty("tagList");
+				expect(Array.isArray(article.tagList)).toBe(true);
+				expect(article).toHaveProperty("author");
+				expect(article).toHaveProperty("favorited");
+				expect(article).toHaveProperty("favoritesCount");
+				expect(Number.isInteger(article.favoritesCount)).toBe(true);
+			}
 		});
 
 		it("should update article", async () => {
@@ -462,10 +567,6 @@ describe("Fast API Tests with Eden Treaty", () => {
 			expect(data.comment).toBeDefined();
 			expect(data.comment.body).toBe(testComment.body);
 			expect(data.comment).toHaveProperty("id");
-			commentId =
-				typeof data.comment.id === "number"
-					? data.comment.id
-					: Number.parseInt(data.comment.id, 10);
 			expect(data.comment).toHaveProperty("createdAt");
 			expect(data.comment).toHaveProperty("updatedAt");
 			expect(data.comment).toHaveProperty("author");
@@ -511,26 +612,44 @@ describe("Fast API Tests with Eden Treaty", () => {
 		});
 
 		it("should delete comment for article", async () => {
-			expect(commentId).toBeDefined();
-			const { error } = await api
+			// First, create a comment to delete
+			const { data: createData, error: createError } = await api
 				.articles({ slug: articleSlug })
-				.comments({ id: commentId! })
+				.comments.post(
+					{
+						comment: testComment,
+					},
+					{
+						headers: {
+							Authorization: `Token ${authToken}`,
+						},
+					},
+				);
+
+			expect(createError).toBeNull();
+			expectToBeDefined(createData);
+			const commentId = createData.comment.id;
+
+			// Now delete the comment
+			const res = await api
+				.articles({ slug: articleSlug })
+				.comments({ id: commentId })
 				.delete(undefined, {
 					headers: {
 						Authorization: `Token ${authToken}`,
 					},
 				});
-			expect(error).toBeNull();
+			expectSuccess(res);
 
-			// Optionally, verify the comment is gone
+			// Verify the comment is gone
 			const { data } = await api.articles({ slug: articleSlug }).comments.get({
 				headers: {
 					Authorization: `Token ${authToken}`,
 				},
 			});
-			expect(
-				data?.comments.find((c: any) => c.id === commentId),
-			).toBeUndefined();
+			expectToBeDefined(data);
+			const commentIds = data.comments.map((c) => c.id);
+			expect(commentIds.includes(commentId.toString())).toBe(false);
 		});
 
 		it("should not create comment as unauthenticated user", async () => {
@@ -542,10 +661,28 @@ describe("Fast API Tests with Eden Treaty", () => {
 		});
 
 		it("should not delete comment as non-author", async () => {
-			expect(commentId).toBeDefined();
+			// First, create a comment to try to delete
+			const { data: createData, error: createError } = await api
+				.articles({ slug: articleSlug })
+				.comments.post(
+					{
+						comment: testComment,
+					},
+					{
+						headers: {
+							Authorization: `Token ${authToken}`,
+						},
+					},
+				);
+
+			expect(createError).toBeNull();
+			expectToBeDefined(createData);
+			const commentId = createData.comment.id;
+
+			// Try to delete as different user (should fail)
 			const { error } = await api
 				.articles({ slug: articleSlug })
-				.comments({ id: commentId! })
+				.comments({ id: commentId })
 				.delete(undefined, {
 					headers: {
 						Authorization: `Token ${authToken2}`,
