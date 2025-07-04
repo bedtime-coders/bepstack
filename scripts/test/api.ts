@@ -1,20 +1,17 @@
 import { $ } from "bun";
 import chalk from "chalk";
 import newman from "newman";
+import { env } from "@/core/env";
 
-const { env } = process;
-
-const APIURL = env.APIURL || `http://localhost:${env.PORT || 3000}/api`;
-const USERNAME = env.USERNAME || "jake";
-const EMAIL = env.EMAIL || "jake@jake.jake";
-const PASSWORD = env.PASSWORD || "hunter2A";
-const POSTMAN_COLLECTION =
-	env.POSTMAN_COLLECTION ||
-	"https://raw.githubusercontent.com/gothinkster/realworld/refs/heads/main/api/Conduit.postman_collection.json";
+const APIURL = env.APIURL;
+const USERNAME = env.USERNAME;
+const EMAIL = env.EMAIL;
+const PASSWORD = env.PASSWORD;
+const POSTMAN_COLLECTION = env.POSTMAN_COLLECTION;
 
 // Performance options
-const SKIP_DB_RESET = env.SKIP_DB_RESET === "true";
-const DELAY_REQUEST = Number.parseInt(env.DELAY_REQUEST || "50", 10); // Reduced from 500ms to 50ms
+const SKIP_DB_RESET = env.SKIP_DB_RESET;
+const DELAY_REQUEST = env.DELAY_REQUEST;
 // Note: Newman doesn't support parallel execution, but we can reduce delays
 
 console.info(chalk.gray("Checking Bedstack health"));
