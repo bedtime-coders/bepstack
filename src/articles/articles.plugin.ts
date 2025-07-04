@@ -222,7 +222,6 @@ export const articlesPlugin = new Elysia({
 					},
 					body: "CreateArticle",
 					response: "Article",
-					auth: true,
 				},
 			)
 			.put(
