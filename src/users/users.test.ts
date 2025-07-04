@@ -1,20 +1,24 @@
-import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
 import { treaty } from "@elysiajs/eden";
 import { app } from "@/core/app";
-import { db } from "@/core/db";
-import { expectSuccess } from "@/shared/utils";
+import {
+	expectError,
+	expectNoError,
+	expectSuccess,
+	registerAndLoginUser,
+} from "@/tests/utils";
 
 const { api } = treaty(app);
 
 const testUser = {
-	email: "test@test.com",
-	username: "testuser",
+	email: "users_test@test.com",
+	username: "users_test_user",
 	password: "Password123",
 };
 
 const testUser2 = {
-	email: "celeb@test.com",
-	username: "celeb_testuser",
+	email: "celeb_users@test.com",
+	username: "celeb_users_user",
 	password: "Password123",
 };
 
@@ -33,28 +37,10 @@ const newUser4 = {
 let authToken: string;
 let authToken2: string;
 
-beforeAll(async () => {
-	await db.$executeRaw`TRUNCATE TABLE users, articles, tags, comments CASCADE`;
-
-	const reg1 = await api.users.post({ user: testUser });
-	authToken = reg1.data?.user?.token ?? "";
-
-	const reg2 = await api.users.post({ user: testUser2 });
-	authToken2 = reg2.data?.user?.token ?? "";
-
-	const login1 = await api.users.login.post({
-		user: { email: testUser.email, password: testUser.password },
-	});
-	authToken = login1.data?.user?.token ?? "";
-
-	const login2 = await api.users.login.post({
-		user: { email: testUser2.email, password: testUser2.password },
-	});
-	authToken2 = login2.data?.user?.token ?? "";
-});
-
-afterAll(async () => {
-	await db.$disconnect();
+// Register users for tests
+beforeEach(async () => {
+	authToken = await registerAndLoginUser(testUser);
+	authToken2 = await registerAndLoginUser(testUser2);
 });
 
 describe("Authentication", () => {
@@ -69,7 +55,7 @@ describe("Authentication", () => {
 			user: newUser,
 		});
 
-		expect(error).toBeNull();
+		expectNoError(error);
 		expect(data?.user).toBeDefined();
 		expect(data?.user.email).toBe(newUser.email);
 		expect(data?.user.username).toBe(newUser.username);
@@ -83,7 +69,7 @@ describe("Authentication", () => {
 			user: { email: testUser.email, password: testUser.password },
 		});
 
-		expect(error).toBeNull();
+		expectNoError(error);
 		expect(data?.user).toBeDefined();
 		expect(data?.user.email).toBe(testUser.email);
 		expect(data?.user.username).toBe(testUser.username);
@@ -97,7 +83,7 @@ describe("Authentication", () => {
 			user: { email: testUser2.email, password: testUser2.password },
 		});
 
-		expect(error).toBeNull();
+		expectNoError(error);
 		expect(data?.user).toBeDefined();
 		expect(data?.user.email).toBe(testUser2.email);
 		expect(data?.user.username).toBe(testUser2.username);
@@ -111,7 +97,7 @@ describe("Authentication", () => {
 		const { data: userData, error: userError } = await api.user.get({
 			headers: { Authorization: `Token ${token}` },
 		});
-		expect(userError).toBeNull();
+		expectNoError(userError);
 		expect(userData?.user.email).toBe(testUser2.email);
 	});
 
@@ -122,7 +108,7 @@ describe("Authentication", () => {
 			},
 		});
 
-		expect(error).toBeNull();
+		expectNoError(error);
 		expect(data?.user.username).toBe(testUser.username);
 		expect(data?.user.email).toBe(testUser.email);
 		expect(data?.user).toHaveProperty("bio");
@@ -143,33 +129,35 @@ describe("Authentication", () => {
 			},
 		);
 
-		expect(error).toBeNull();
+		expectNoError(error);
 		expect(data?.user.email).toBe(updatedEmail);
 		expect(data?.user).toHaveProperty("username");
 		expect(data?.user).toHaveProperty("bio");
 		expect(data?.user).toHaveProperty("image");
 		expect(data?.user).toHaveProperty("token");
 
+		// Get updated token for the user with new email
 		const login = await api.users.login.post({
 			user: { email: updatedEmail, password: testUser.password },
 		});
-		authToken = login.data?.user?.token ?? "";
+		const updatedAuthToken = login.data?.user?.token ?? "";
 
+		// Refresh second user's token
 		const login2 = await api.users.login.post({
 			user: { email: testUser2.email, password: testUser2.password },
 		});
 		authToken2 = login2.data?.user?.token ?? "";
 
 		const { data: user1Data, error: user1Error } = await api.user.get({
-			headers: { Authorization: `Token ${authToken}` },
+			headers: { Authorization: `Token ${updatedAuthToken}` },
 		});
-		expect(user1Error).toBeNull();
+		expectNoError(user1Error);
 		expect(user1Data?.user.email).toBe(updatedEmail);
 
 		const { data: user2Data, error: user2Error } = await api.user.get({
 			headers: { Authorization: `Token ${authToken2}` },
 		});
-		expect(user2Error).toBeNull();
+		expectNoError(user2Error);
 		expect(user2Data?.user.email).toBe(testUser2.email);
 	});
 
@@ -177,7 +165,7 @@ describe("Authentication", () => {
 		const { data, error } = await api.users.post({
 			user: { email: "", password: "", username: "" },
 		});
-		expect(error).toBeDefined();
+		expectError(error);
 		expect(data).toBeNull();
 	});
 
@@ -189,7 +177,7 @@ describe("Authentication", () => {
 		const res2 = await api.users.post({
 			user: { ...newUser4, email: newUser3.email },
 		});
-		expect(res2.error).toBeDefined();
+		expectError(res2.error);
 		expect(res2.data).toBeNull();
 	});
 
@@ -201,7 +189,7 @@ describe("Authentication", () => {
 				username: testUser.username,
 			},
 		});
-		expect(error).toBeDefined();
+		expectError(error);
 		expect(data).toBeNull();
 	});
 
@@ -209,7 +197,7 @@ describe("Authentication", () => {
 		const { data, error } = await api.users.login.post({
 			user: { email: testUser.email, password: "wrongpassword" },
 		});
-		expect(error).toBeDefined();
+		expectError(error);
 		expect(data).toBeNull();
 	});
 
@@ -217,7 +205,7 @@ describe("Authentication", () => {
 		const { data, error } = await api.users.login.post({
 			user: { email: "", password: "" },
 		});
-		expect(error).toBeDefined();
+		expectError(error);
 		expect(data).toBeNull();
 	});
 });

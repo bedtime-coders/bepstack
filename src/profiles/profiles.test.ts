@@ -1,59 +1,39 @@
-import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
 import { treaty } from "@elysiajs/eden";
 import { app } from "@/core/app";
-import { db } from "@/core/db";
+import { expectNoError, registerAndLoginUser } from "@/tests/utils";
 
 // Create type-safe API client with Eden Treaty
 const { api } = treaty(app);
 
 // Test data
 const testUser = {
-	email: "test@test.com",
-	username: "testuser",
+	email: "profiles_test@test.com",
+	username: "profiles_test_user",
 	password: "Password123",
 };
 
 const testUser2 = {
-	email: "celeb@test.com",
-	username: "celeb_testuser",
+	email: "celeb_profiles@test.com",
+	username: "celeb_profiles_user",
 	password: "Password123",
 };
 
 let authToken: string;
-beforeAll(async () => {
-	// Reset database
-	await db.$executeRaw`TRUNCATE TABLE users, articles, tags, comments CASCADE`;
 
-	// Register first user
-	const reg1 = await api.users.post({ user: testUser });
-	authToken = reg1.data?.user?.token ?? "";
-
-	// Register second user
-	await api.users.post({ user: testUser2 });
-
-	// Login first user (to ensure token is valid)
-	const login1 = await api.users.login.post({
-		user: { email: testUser.email, password: testUser.password },
-	});
-	authToken = login1.data?.user?.token ?? "";
-
-	// Login second user (to ensure token is valid)
-	await api.users.login.post({
-		user: { email: testUser2.email, password: testUser2.password },
-	});
+// Register users for profile tests
+beforeEach(async () => {
+	authToken = await registerAndLoginUser(testUser);
+	await registerAndLoginUser(testUser2);
 });
 
 describe("Profile Tests", () => {
-	afterAll(async () => {
-		await db.$disconnect();
-	});
-
 	it("should get profile", async () => {
 		const { data, error } = await api
 			.profiles({ username: testUser2.username })
 			.get();
 
-		expect(error).toBeNull();
+		expectNoError(error);
 		expect(data?.profile).toBeDefined();
 		expect(data?.profile.username).toBe(testUser2.username);
 		expect(data?.profile).toHaveProperty("bio");
@@ -73,7 +53,7 @@ describe("Profile Tests", () => {
 				},
 			);
 
-		expect(error).toBeNull();
+		expectNoError(error);
 		expect(data?.profile).toBeDefined();
 		expect(data?.profile.username).toBe(testUser2.username);
 		expect(data?.profile).toHaveProperty("bio");
@@ -90,7 +70,7 @@ describe("Profile Tests", () => {
 					Authorization: `Token ${authToken}`,
 				},
 			});
-		expect(error).toBeNull();
+		expectNoError(error);
 		expect(data?.profile).toBeDefined();
 		expect(data?.profile.username).toBe(testUser2.username);
 		expect(data?.profile.following).toBe(false);
