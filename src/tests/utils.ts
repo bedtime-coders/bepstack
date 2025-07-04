@@ -5,20 +5,130 @@ import { db } from "@/core/db";
 
 const { api } = treaty(app);
 
+// Type definitions for Eden/Elysia errors
+interface EdenError {
+	status: number;
+	value?: unknown;
+	message?: string;
+	[key: string]: unknown;
+}
+
+interface ErrorWithStatus {
+	status: number;
+	[key: string]: unknown;
+}
+
+interface ErrorWithMessage {
+	message: string;
+	[key: string]: unknown;
+}
+
+// Type guards
+function isEdenError(error: unknown): error is EdenError {
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		"status" in error &&
+		typeof (error as EdenError).status === "number"
+	);
+}
+
+function isErrorWithStatus(error: unknown): error is ErrorWithStatus {
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		"status" in error &&
+		typeof (error as ErrorWithStatus).status === "number"
+	);
+}
+
+function isErrorWithMessage(error: unknown): error is ErrorWithMessage {
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		"message" in error &&
+		typeof (error as ErrorWithMessage).message === "string"
+	);
+}
+
 export function expectToBeDefined<T>(
 	value: T | null | undefined,
 ): asserts value is T {
 	expect(value).toBeDefined();
 }
 
+// Bulletproof error logger for test failures
+export function logTestError(error: unknown) {
+	if (!error) return;
+
+	if (isEdenError(error)) {
+		console.error("Status:", error.status);
+		if (error.value) {
+			console.error(
+				"Value:",
+				typeof error.value === "object"
+					? JSON.stringify(error.value, null, 2)
+					: error.value,
+			);
+		}
+		return;
+	}
+
+	// If it's an Error instance (but not a plain object)
+	if (error instanceof Error) {
+		console.error(`${error.name}: ${error.message}`);
+		return;
+	}
+
+	// Fallback for primitives
+	console.error("Error:", String(error));
+}
+
 export function expectSuccess(response: { error: unknown; data: unknown }) {
-	expect(response.error).toBeNull();
+	if (response.error) {
+		logTestError(response.error);
+	}
+	expectNoError(response.error);
 	expect(response.data).toBeDefined();
+}
+
+// export function expectNoError(error: unknown) {
+// 	if (error) {
+// 		logTestError(error);
+// 	}
+// 	expect(error).toBeNull();
+// }
+
+// Utils to expect a null error, and if it's not, log it nicely
+// DEPRECATED: Use logAndExpectNullError instead
+export function expectNullError(error: unknown) {
+	if (error) {
+		console.error("❌ Test error (deprecated):", error);
+		console.error("❌ Test error (deprecated, formatted):", formatError(error));
+	}
+	expectNoError(error);
+}
+
+export function logAndExpectNullError(error: unknown) {
+	if (error) {
+		console.error("❌ Test error:", error);
+		console.error("❌ Test error (formatted):", formatError(error));
+	}
+	expectNoError(error);
 }
 
 export function formatError(error: unknown): string {
 	if (error instanceof Error) {
 		return `${error.name}: ${error.message}\n${error.stack || ""}`;
+	}
+	if (isEdenError(error)) {
+		let msg = "";
+		msg += `Status: ${error.status}\n`;
+		if (error.value) msg += `Value: ${JSON.stringify(error.value, null, 2)}\n`;
+		const { status: _, value: __, ...rest } = error;
+		if (Object.keys(rest).length)
+			msg += `Other: ${JSON.stringify(rest, null, 2)}\n`;
+		return msg;
 	}
 	if (typeof error === "object" && error !== null) {
 		return JSON.stringify(error, null, 2);
@@ -27,7 +137,19 @@ export function formatError(error: unknown): string {
 }
 
 export async function resetDb() {
-	await db.$executeRaw`TRUNCATE TABLE users, articles, tags, comments CASCADE`;
+	// Use raw SQL to properly truncate all tables including implicit many-to-many tables
+	await db.$executeRawUnsafe(`
+		TRUNCATE TABLE
+			"_UserFavorites",
+			"_UserFollows",
+			"_ArticleToTag",
+			comments,
+			articles,
+			tags,
+			users
+		RESTART IDENTITY
+		CASCADE;
+	`);
 }
 
 export async function registerAndLoginUser(user: {
@@ -41,18 +163,84 @@ export async function registerAndLoginUser(user: {
 			`Registration failed: ${reg.error ? JSON.stringify(reg.error) : "No token"}`,
 		);
 	}
-	// Optionally, login again to ensure token is valid
-	const login = await api.users.login.post({
-		user: { email: user.email, password: user.password },
-	});
-	if (login.error || !login.data?.user?.token) {
-		throw new Error(
-			`Login failed: ${login.error ? JSON.stringify(login.error) : "No token"}`,
-		);
-	}
-	return login.data.user.token;
+	return reg.data.user.token;
 }
 
 export async function disconnectDb() {
 	await db.$disconnect();
+}
+
+export function expectNoError(
+	error: unknown,
+	opts?: { allowStatus?: number | number[] },
+) {
+	if (!error) {
+		expect(error).toBeNull();
+		return;
+	}
+	logTestError(error);
+
+	// Allow certain statuses if specified
+	if (opts?.allowStatus && isErrorWithStatus(error)) {
+		const status = error.status;
+		if (
+			(Array.isArray(opts.allowStatus) && opts.allowStatus.includes(status)) ||
+			status === opts.allowStatus
+		) {
+			// For array case, just check if status is in the array
+			if (Array.isArray(opts.allowStatus)) {
+				expect(opts.allowStatus).toContain(status);
+			} else {
+				expect(status).toBe(opts.allowStatus);
+			}
+			return;
+		}
+	}
+
+	// If error has a status, assert on that (but avoid printing the raw object)
+	if (isErrorWithStatus(error)) {
+		const status = error.status;
+		// Use a more specific assertion that won't print the raw object
+		expect(status).toBe(0);
+		return;
+	}
+
+	// If error has a message, assert on that
+	if (isErrorWithMessage(error)) {
+		const message = error.message;
+		expect(message).toBe("");
+		return;
+	}
+
+	// For any other case, just assert that the error is falsy
+	// This avoids printing the raw object
+	expect(Boolean(error)).toBe(false);
+}
+
+// Utility for tests that expect errors to occur
+export function expectError(error: unknown) {
+	if (!error) {
+		// Only log if we expected an error but got none
+		console.error("Expected an error but got none");
+		expect(error).toBeDefined();
+		return;
+	}
+
+	// Don't log error details for expected errors - only log if the test fails
+	// If error has a status, assert on that
+	if (isErrorWithStatus(error)) {
+		const status = error.status;
+		expect(status).toBeGreaterThan(0);
+		return;
+	}
+
+	// If error has a message, assert on that
+	if (isErrorWithMessage(error)) {
+		const message = error.message;
+		expect(message).toBeDefined();
+		return;
+	}
+
+	// Fallback: just assert that error exists
+	expect(Boolean(error)).toBe(true);
 }

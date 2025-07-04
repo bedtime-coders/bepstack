@@ -1,20 +1,24 @@
-import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
 import { treaty } from "@elysiajs/eden";
 import { app } from "@/core/app";
-import { db } from "@/core/db";
-import { expectSuccess, expectToBeDefined } from "@/tests/utils";
+import {
+	expectNoError,
+	expectSuccess,
+	expectToBeDefined,
+	registerAndLoginUser,
+} from "@/tests/utils";
 
 const { api } = treaty(app);
 
 const testUser = {
-	email: "test@test.com",
-	username: "testuser",
+	email: "comments_test@test.com",
+	username: "comments_test_user",
 	password: "Password123",
 };
 
 const testUser2 = {
-	email: "celeb@test.com",
-	username: "celeb_testuser",
+	email: "celeb_comments@test.com",
+	username: "celeb_comments_user",
 	password: "Password123",
 };
 
@@ -33,24 +37,10 @@ let authToken: string;
 let authToken2: string;
 let articleSlug: string;
 
-beforeAll(async () => {
-	await db.$executeRaw`TRUNCATE TABLE users, articles, tags, comments CASCADE`;
-
-	const reg1 = await api.users.post({ user: testUser });
-	authToken = reg1.data?.user?.token ?? "";
-
-	const reg2 = await api.users.post({ user: testUser2 });
-	authToken2 = reg2.data?.user?.token ?? "";
-
-	const login1 = await api.users.login.post({
-		user: { email: testUser.email, password: testUser.password },
-	});
-	authToken = login1.data?.user?.token ?? "";
-
-	const login2 = await api.users.login.post({
-		user: { email: testUser2.email, password: testUser2.password },
-	});
-	authToken2 = login2.data?.user?.token ?? "";
+// Register users and create article for tests
+beforeEach(async () => {
+	authToken = await registerAndLoginUser(testUser);
+	authToken2 = await registerAndLoginUser(testUser2);
 
 	// Create an article to comment on
 	const { data: articleData } = await api.articles.post(
@@ -58,10 +48,6 @@ beforeAll(async () => {
 		{ headers: { Authorization: `Token ${authToken}` } },
 	);
 	articleSlug = articleData?.article?.slug ?? "";
-});
-
-afterAll(async () => {
-	await db.$disconnect();
 });
 
 describe("Comments", () => {
@@ -79,7 +65,7 @@ describe("Comments", () => {
 				},
 			);
 
-		expect(error).toBeNull();
+		expectNoError(error);
 		expectToBeDefined(data);
 
 		expect(data.comment).toBeDefined();
@@ -104,6 +90,18 @@ describe("Comments", () => {
 	});
 
 	it("should get all comments for article", async () => {
+		// First create a comment to ensure there's data to retrieve
+		await api.articles({ slug: articleSlug }).comments.post(
+			{
+				comment: testComment,
+			},
+			{
+				headers: {
+					Authorization: `Token ${authToken}`,
+				},
+			},
+		);
+
 		const { data, error } = await api
 			.articles({ slug: articleSlug })
 			.comments.get({
@@ -112,7 +110,7 @@ describe("Comments", () => {
 				},
 			});
 
-		expect(error).toBeNull();
+		expectNoError(error);
 		expectToBeDefined(data);
 		expectToBeDefined(data.comments);
 		expect(Array.isArray(data.comments)).toBe(true);

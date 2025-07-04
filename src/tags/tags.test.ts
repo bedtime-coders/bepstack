@@ -1,15 +1,15 @@
-import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
 import { treaty } from "@elysiajs/eden";
 import { app } from "@/core/app";
-import { db } from "@/core/db";
+import { expectNoError, registerAndLoginUser } from "@/tests/utils";
 
 // Create type-safe API client with Eden Treaty
 const { api } = treaty(app);
 
 // Test data
 const testUser = {
-	email: "test@test.com",
-	username: "testuser",
+	email: "tags_test@test.com",
+	username: "tags_test_user",
 	password: "Password123",
 };
 
@@ -22,20 +22,10 @@ const testArticle = {
 
 let authToken: string;
 
-beforeAll(async () => {
-	// Reset database
-	await db.$executeRaw`TRUNCATE TABLE users, articles, tags, comments CASCADE`;
+// Register user and create article with tags for tests
+beforeEach(async () => {
+	authToken = await registerAndLoginUser(testUser);
 
-	// Register user
-	const reg1 = await api.users.post({ user: testUser });
-	if (reg1.error || !reg1.data?.user?.token) {
-		throw new Error(
-			`User registration failed: ${reg1.error ? JSON.stringify(reg1.error) : "No token returned"}`,
-		);
-	}
-	authToken = reg1.data.user.token;
-
-	// Create an article with tags to ensure tags exist
 	const articleRes = await api.articles.post(
 		{
 			article: testArticle,
@@ -54,14 +44,10 @@ beforeAll(async () => {
 });
 
 describe("Tags Tests", () => {
-	afterAll(async () => {
-		await db.$disconnect();
-	});
-
 	it("should get all tags", async () => {
 		const { data, error } = await api.tags.get();
 
-		expect(error).toBeNull();
+		expectNoError(error);
 		expect(data?.tags).toBeDefined();
 		expect(Array.isArray(data?.tags)).toBe(true);
 		expect(data?.tags.length).toBeGreaterThan(0);

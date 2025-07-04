@@ -1,20 +1,23 @@
-import { afterAll, beforeAll, describe, expect, it } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
 import { treaty } from "@elysiajs/eden";
 import { app } from "@/core/app";
-import { db } from "@/core/db";
-import { expectToBeDefined } from "@/tests";
+import {
+	expectNoError,
+	expectToBeDefined,
+	registerAndLoginUser,
+} from "@/tests/utils";
 
 const { api } = treaty(app);
 
 const testUser = {
-	email: "test@test.com",
-	username: "testuser",
+	email: "articles_test@test.com",
+	username: "articles_test_user",
 	password: "Password123",
 };
 
 const testUser2 = {
-	email: "celeb@test.com",
-	username: "celeb_testuser",
+	email: "celeb_articles@test.com",
+	username: "celeb_articles_user",
 	password: "Password123",
 };
 
@@ -27,6 +30,12 @@ const testArticle = {
 
 let authToken: string;
 let authToken2: string;
+
+// Register users for tests
+beforeEach(async () => {
+	authToken = await registerAndLoginUser(testUser);
+	authToken2 = await registerAndLoginUser(testUser2);
+});
 
 async function createTestArticle(token = authToken) {
 	const { data, error } = await api.articles.post(
@@ -41,37 +50,13 @@ async function createTestArticle(token = authToken) {
 	return data.article.slug;
 }
 
-beforeAll(async () => {
-	await db.$executeRaw`TRUNCATE TABLE users, articles, tags, comments CASCADE`;
-
-	const reg1 = await api.users.post({ user: testUser });
-	authToken = reg1.data?.user?.token ?? "";
-
-	const reg2 = await api.users.post({ user: testUser2 });
-	authToken2 = reg2.data?.user?.token ?? "";
-
-	const login1 = await api.users.login.post({
-		user: { email: testUser.email, password: testUser.password },
-	});
-	authToken = login1.data?.user?.token ?? "";
-
-	const login2 = await api.users.login.post({
-		user: { email: testUser2.email, password: testUser2.password },
-	});
-	authToken2 = login2.data?.user?.token ?? "";
-});
-
-afterAll(async () => {
-	await db.$disconnect();
-});
-
 describe("Articles", () => {
 	it("should get all articles (empty)", async () => {
 		const { data, error } = await api.articles.get({
 			query: { limit: 10, offset: 0 },
 		});
 
-		expect(error).toBeNull();
+		expectNoError(error);
 		expect(data?.articles).toBeDefined();
 		expect(Array.isArray(data?.articles)).toBe(true);
 		expect(data?.articlesCount).toBe(0);
@@ -80,7 +65,7 @@ describe("Articles", () => {
 	it("should create an article", async () => {
 		const slug = await createTestArticle();
 		const { data, error } = await api.articles({ slug }).get();
-		expect(error).toBeNull();
+		expectNoError(error);
 		expect(data?.article).toBeDefined();
 		expect(data?.article.title).toBe(testArticle.title);
 		expect(data?.article.description).toBe(testArticle.description);
@@ -103,17 +88,20 @@ describe("Articles", () => {
 			query: { limit: 10, offset: 0 },
 		});
 
-		expect(error).toBeNull();
+		expectNoError(error);
 		expect(data?.articles).toBeDefined();
 		expect(Array.isArray(data?.articles)).toBe(true);
 	});
 
 	it("should get all articles", async () => {
+		// First create an article to ensure there's data to retrieve
+		await createTestArticle();
+
 		const { data, error } = await api.articles.get({
 			query: { limit: 10, offset: 0 },
 		});
 
-		expect(error).toBeNull();
+		expectNoError(error);
 		expect(data?.articles).toBeDefined();
 		expect(data?.articlesCount).toBeGreaterThan(0);
 		expect(Array.isArray(data?.articles)).toBe(true);
@@ -127,17 +115,20 @@ describe("Articles", () => {
 			query: { limit: 10, offset: 0 },
 		});
 
-		expect(error).toBeNull();
+		expectNoError(error);
 		expect(data?.articles).toBeDefined();
 		expect(Array.isArray(data?.articles)).toBe(true);
 	});
 
 	it("should get articles by author", async () => {
+		// First create an article to ensure there's data to retrieve
+		await createTestArticle();
+
 		const { data, error } = await api.articles.get({
 			query: { author: testUser.username },
 		});
 
-		expect(error).toBeNull();
+		expectNoError(error);
 		expect(data?.articles).toBeDefined();
 		expect(data?.articles.length).toBeGreaterThan(0);
 	});
@@ -150,7 +141,7 @@ describe("Articles", () => {
 			query: { author: testUser.username },
 		});
 
-		expect(error).toBeNull();
+		expectNoError(error);
 		expect(data?.articles).toBeDefined();
 		expect(Array.isArray(data?.articles)).toBe(true);
 	});
@@ -158,18 +149,21 @@ describe("Articles", () => {
 	it("should get single article by slug", async () => {
 		const slug = await createTestArticle();
 		const { data, error } = await api.articles({ slug }).get();
-		expect(error).toBeNull();
+		expectNoError(error);
 		expect(data?.article).toBeDefined();
 		expect(data?.article.slug).toBe(slug);
 		expect(data?.article.title).toBe(testArticle.title);
 	});
 
 	it("should get articles by tag", async () => {
+		// First create an article to ensure there's data to retrieve
+		await createTestArticle();
+
 		const { data, error } = await api.articles.get({
 			query: { tag: "test" },
 		});
 
-		expect(error).toBeNull();
+		expectNoError(error);
 		expect(data?.articles).toBeDefined();
 		expect(data?.articles.length).toBeGreaterThan(0);
 	});
@@ -182,7 +176,7 @@ describe("Articles", () => {
 			query: { tag: "test" },
 		});
 
-		expect(error).toBeNull();
+		expectNoError(error);
 		expectToBeDefined(data);
 		expect(data.articles).toBeDefined();
 		expect(Array.isArray(data.articles)).toBe(true);
@@ -212,7 +206,7 @@ describe("Articles", () => {
 				{ article: { body: updatedBody } },
 				{ headers: { Authorization: `Token ${authToken}` } },
 			);
-		expect(error).toBeNull();
+		expectNoError(error);
 		expect(data?.article).toBeDefined();
 		expect(data?.article.body).toBe(updatedBody);
 		expect(data?.article.title).toBe(testArticle.title);
@@ -237,7 +231,7 @@ describe("Articles", () => {
 				},
 			},
 		);
-		expect(error).toBeNull();
+		expectNoError(error);
 		expect(data?.article).toBeDefined();
 		expect(data?.article.favorited).toBe(true);
 		expect(data?.article.favoritesCount).toBeGreaterThan(0);
@@ -248,7 +242,7 @@ describe("Articles", () => {
 			query: { favorited: testUser2.username },
 		});
 
-		expect(error).toBeNull();
+		expectNoError(error);
 		expect(data?.articles).toBeDefined();
 		expect(Array.isArray(data?.articles)).toBe(true);
 	});
@@ -261,7 +255,7 @@ describe("Articles", () => {
 			query: { favorited: testUser2.username },
 		});
 
-		expect(error).toBeNull();
+		expectNoError(error);
 		expect(data?.articles).toBeDefined();
 		expect(Array.isArray(data?.articles)).toBe(true);
 	});
@@ -281,7 +275,7 @@ describe("Articles", () => {
 			.favorite.delete(undefined, {
 				headers: { Authorization: `Token ${authToken2}` },
 			});
-		expect(error).toBeNull();
+		expectNoError(error);
 		expect(data?.article).toBeDefined();
 		expect(data?.article.favorited).toBe(false);
 	});
