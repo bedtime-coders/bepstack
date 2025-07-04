@@ -29,7 +29,8 @@ const { values } = parseArgs({
 });
 
 // check --skip-db-reset param
-const shouldSkipDbReset = values["skip-db-reset"] || testEnv.SKIP_DB_RESET;
+const shouldSkipDbReset =
+  values["skip-db-reset"] ?? testEnv.SKIP_DB_RESET;
 const isWatchMode = values.watch || false;
 
 // Performance options
