@@ -26,7 +26,7 @@
 		"db:start": "docker compose up -d db-dev",
 		"db:stop": "docker compose stop db-dev",
 		"db:restart": "docker compose restart db-dev",
-		"db:down": "docker compose down db-dev",
+		"db:down": "docker compose rm -sf db-dev",
 		"db:remove": "docker compose down -v db-dev",
 		"db:test": "source .env.test && docker compose up db-test",
 		"db:test:start": "docker compose --env-file .env.test up -d db-test",
