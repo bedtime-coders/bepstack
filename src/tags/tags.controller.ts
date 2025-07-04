@@ -1,15 +1,13 @@
 import { Elysia, t } from "elysia";
-import { db } from "@/core/db";
+import * as TagsService from "./tags.service";
 
 export const tags = new Elysia({
 	tags: ["Tags"],
 }).get(
 	"/tags",
 	async () => {
-		const allTags = await db.tag.findMany();
-		return {
-			tags: allTags.map((tag) => tag.name),
-		};
+		const tags = await TagsService.findAll();
+		return { tags };
 	},
 	{
 		detail: {
