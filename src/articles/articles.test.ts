@@ -27,7 +27,19 @@ const testArticle = {
 
 let authToken: string;
 let authToken2: string;
-let articleSlug: string;
+
+async function createTestArticle(token = authToken) {
+	const { data, error } = await api.articles.post(
+		{ article: testArticle },
+		{ headers: { Authorization: `Token ${token}` } },
+	);
+	if (error || !data?.article?.slug) {
+		throw new Error(
+			`Failed to create article: ${error ? JSON.stringify(error) : "No slug returned"}`,
+		);
+	}
+	return data.article.slug;
+}
 
 beforeAll(async () => {
 	await db.$executeRaw`TRUNCATE TABLE users, articles, tags, comments CASCADE`;
@@ -66,17 +78,8 @@ describe("Articles", () => {
 	});
 
 	it("should create an article", async () => {
-		const { data, error } = await api.articles.post(
-			{
-				article: testArticle,
-			},
-			{
-				headers: {
-					Authorization: `Token ${authToken}`,
-				},
-			},
-		);
-
+		const slug = await createTestArticle();
+		const { data, error } = await api.articles({ slug }).get();
 		expect(error).toBeNull();
 		expect(data?.article).toBeDefined();
 		expect(data?.article.title).toBe(testArticle.title);
@@ -90,10 +93,6 @@ describe("Articles", () => {
 		expect(data?.article).toHaveProperty("favorited");
 		expect(data?.article).toHaveProperty("favoritesCount");
 		expect(Number.isInteger(data?.article.favoritesCount)).toBe(true);
-
-		if (data?.article?.slug) {
-			articleSlug = data.article.slug;
-		}
 	});
 
 	it("should get feed articles", async () => {
@@ -157,11 +156,11 @@ describe("Articles", () => {
 	});
 
 	it("should get single article by slug", async () => {
-		const { data, error } = await api.articles({ slug: articleSlug }).get();
-
+		const slug = await createTestArticle();
+		const { data, error } = await api.articles({ slug }).get();
 		expect(error).toBeNull();
 		expect(data?.article).toBeDefined();
-		expect(data?.article.slug).toBe(articleSlug);
+		expect(data?.article.slug).toBe(slug);
 		expect(data?.article.title).toBe(testArticle.title);
 	});
 
@@ -205,18 +204,14 @@ describe("Articles", () => {
 	});
 
 	it("should update article", async () => {
+		const slug = await createTestArticle();
 		const updatedBody = "With two hands";
-		const { data, error } = await api.articles({ slug: articleSlug }).put(
-			{
-				article: { body: updatedBody },
-			},
-			{
-				headers: {
-					Authorization: `Token ${authToken}`,
-				},
-			},
-		);
-
+		const { data, error } = await api
+			.articles({ slug })
+			.put(
+				{ article: { body: updatedBody } },
+				{ headers: { Authorization: `Token ${authToken}` } },
+			);
 		expect(error).toBeNull();
 		expect(data?.article).toBeDefined();
 		expect(data?.article.body).toBe(updatedBody);
@@ -233,17 +228,15 @@ describe("Articles", () => {
 	});
 
 	it("should favorite article", async () => {
-		const { data, error } = await api
-			.articles({ slug: articleSlug })
-			.favorite.post(
-				{},
-				{
-					headers: {
-						Authorization: `Token ${authToken2}`,
-					},
+		const slug = await createTestArticle();
+		const { data, error } = await api.articles({ slug }).favorite.post(
+			{},
+			{
+				headers: {
+					Authorization: `Token ${authToken2}`,
 				},
-			);
-
+			},
+		);
 		expect(error).toBeNull();
 		expect(data?.article).toBeDefined();
 		expect(data?.article.favorited).toBe(true);
@@ -274,12 +267,19 @@ describe("Articles", () => {
 	});
 
 	it("should unfavorite article", async () => {
+		const slug = await createTestArticle();
+		// First, favorite the article
+		await api.articles({ slug }).favorite.post(
+			{},
+			{
+				headers: { Authorization: `Token ${authToken2}` },
+			},
+		);
+		// Now, unfavorite
 		const { data, error } = await api
-			.articles({ slug: articleSlug })
+			.articles({ slug })
 			.favorite.delete(undefined, {
-				headers: {
-					Authorization: `Token ${authToken2}`,
-				},
+				headers: { Authorization: `Token ${authToken2}` },
 			});
 		expect(error).toBeNull();
 		expect(data?.article).toBeDefined();
@@ -295,41 +295,35 @@ describe("Articles", () => {
 	});
 
 	it("should not update article as non-author", async () => {
-		const { data, error } = await api.articles({ slug: articleSlug }).put(
-			{ article: { body: "hacked" } },
-			{
-				headers: {
-					Authorization: `Token ${authToken2}`,
-				},
-			},
-		);
+		const slug = await createTestArticle();
+		const { data, error } = await api
+			.articles({ slug })
+			.put(
+				{ article: { body: "hacked" } },
+				{ headers: { Authorization: `Token ${authToken2}` } },
+			);
 		expect(error).toBeDefined();
 		expect(data).toBeNull();
 	});
 
 	it("should not delete article as non-author", async () => {
-		const { error } = await api
-			.articles({ slug: articleSlug })
-			.delete(undefined, {
-				headers: {
-					Authorization: `Token ${authToken2}`,
-				},
-			});
+		const slug = await createTestArticle();
+		const { error } = await api.articles({ slug }).delete(undefined, {
+			headers: { Authorization: `Token ${authToken2}` },
+		});
 		expect(error).toBeDefined();
 	});
 
 	it("should not favorite article as unauthenticated user", async () => {
-		const { data, error } = await api
-			.articles({ slug: articleSlug })
-			.favorite.post();
+		const slug = await createTestArticle();
+		const { data, error } = await api.articles({ slug }).favorite.post();
 		expect(error).toBeDefined();
 		expect(data).toBeNull();
 	});
 
 	it("should not unfavorite article as unauthenticated user", async () => {
-		const { data, error } = await api
-			.articles({ slug: articleSlug })
-			.favorite.delete();
+		const slug = await createTestArticle();
+		const { data, error } = await api.articles({ slug }).favorite.delete();
 		expect(error).toBeDefined();
 		expect(data).toBeNull();
 	});
