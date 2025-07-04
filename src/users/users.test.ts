@@ -2,15 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { treaty } from "@elysiajs/eden";
 import { app } from "@/core/app";
 import { db } from "@/core/db";
-
-function expectToBeDefined<T>(value: T | null | undefined): asserts value is T {
-	expect(value).toBeDefined();
-}
-
-function expectSuccess(response: { error: unknown; data: unknown }) {
-	expect(response.error).toBeNull();
-	expect(response.data).toBeDefined();
-}
+import { expectSuccess } from "@/shared/utils";
 
 const { api } = treaty(app);
 
