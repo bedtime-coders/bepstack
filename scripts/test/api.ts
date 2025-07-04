@@ -5,13 +5,13 @@ import { $ } from "bun";
 import chalk from "chalk";
 import newman from "newman";
 import { debounce } from "radashi";
-import { env } from "@/core/env";
+import { testEnv } from "@/core/test-env";
 
-const APIURL = env.APIURL;
-const USERNAME = env.USERNAME;
-const EMAIL = env.EMAIL;
-const PASSWORD = env.PASSWORD;
-const POSTMAN_COLLECTION = env.POSTMAN_COLLECTION;
+const APIURL = testEnv.APIURL;
+const USERNAME = testEnv.USERNAME;
+const EMAIL = testEnv.EMAIL;
+const PASSWORD = testEnv.PASSWORD;
+const POSTMAN_COLLECTION = testEnv.POSTMAN_COLLECTION;
 
 // Parse command line arguments
 const { values } = parseArgs({
@@ -29,11 +29,11 @@ const { values } = parseArgs({
 });
 
 // check --skip-db-reset param
-const shouldSkipDbReset = values["skip-db-reset"] || env.SKIP_DB_RESET;
+const shouldSkipDbReset = values["skip-db-reset"] || testEnv.SKIP_DB_RESET;
 const isWatchMode = values.watch || false;
 
 // Performance options
-const DELAY_REQUEST = env.DELAY_REQUEST;
+const DELAY_REQUEST = testEnv.DELAY_REQUEST;
 // Note: Newman doesn't support parallel execution, but we can reduce delays
 
 console.info(chalk.gray("Checking Bedstack health"));
