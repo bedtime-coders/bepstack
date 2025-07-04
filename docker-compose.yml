@@ -1,5 +1,5 @@
 services:
-  db:
+  db-dev:
     image: postgres:17-alpine
     restart: unless-stopped
     environment:
@@ -10,6 +10,18 @@ services:
       - "${DB_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
+  db-test:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: yam
+      POSTGRES_PASSWORD: yam123
+      POSTGRES_DB: bedstack_test
+    ports:
+      - "${DB_TEST_PORT:-5433}:5432"
+    volumes:
+      - postgres-test-data:/var/lib/postgresql/data
 
 volumes:
   postgres-data:
+  postgres-test-data:

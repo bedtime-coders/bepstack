@@ -13,9 +13,6 @@ const EMAIL = env.EMAIL;
 const PASSWORD = env.PASSWORD;
 const POSTMAN_COLLECTION = env.POSTMAN_COLLECTION;
 
-// Performance options
-const DELAY_REQUEST = env.DELAY_REQUEST;
-
 // Parse command line arguments
 const { values } = parseArgs({
 	args: Bun.argv,
@@ -34,6 +31,10 @@ const { values } = parseArgs({
 // check --skip-db-reset param
 const shouldSkipDbReset = values["skip-db-reset"] || env.SKIP_DB_RESET;
 const isWatchMode = values.watch || false;
+
+// Performance options
+const DELAY_REQUEST = env.DELAY_REQUEST;
+// Note: Newman doesn't support parallel execution, but we can reduce delays
 
 console.info(chalk.gray("Checking Bedstack health"));
 

@@ -6,7 +6,7 @@ import { expectNoError, registerAndLoginUser } from "@/tests/utils";
 // Create type-safe API client with Eden Treaty
 const { api } = treaty(app);
 
-// Test dataW
+// Test data
 const testUser = {
 	email: "tags_test@test.com",
 	username: "tags_test_user",
