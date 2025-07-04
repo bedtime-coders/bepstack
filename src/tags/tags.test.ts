@@ -28,16 +28,15 @@ beforeAll(async () => {
 
 	// Register user
 	const reg1 = await api.users.post({ user: testUser });
-	authToken = reg1.data?.user?.token ?? "";
-
-	// Login user (to ensure token is valid)
-	const login1 = await api.users.login.post({
-		user: { email: testUser.email, password: testUser.password },
-	});
-	authToken = login1.data?.user?.token ?? "";
+	if (reg1.error || !reg1.data?.user?.token) {
+		throw new Error(
+			`User registration failed: ${reg1.error ? JSON.stringify(reg1.error) : "No token returned"}`,
+		);
+	}
+	authToken = reg1.data.user.token;
 
 	// Create an article with tags to ensure tags exist
-	await api.articles.post(
+	const articleRes = await api.articles.post(
 		{
 			article: testArticle,
 		},
@@ -47,6 +46,11 @@ beforeAll(async () => {
 			},
 		},
 	);
+	if (articleRes.error || !articleRes.data?.article) {
+		throw new Error(
+			`Article creation failed: ${articleRes.error ? JSON.stringify(articleRes.error) : "No article returned"}`,
+		);
+	}
 });
 
 describe("Tags Tests", () => {
