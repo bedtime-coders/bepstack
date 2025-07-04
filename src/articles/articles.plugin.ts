@@ -222,7 +222,6 @@ export const articlesPlugin = new Elysia({
 					},
 					body: "CreateArticle",
 					response: "Article",
-					auth: true,
 				},
 			)
 			.put(
@@ -318,13 +317,6 @@ export const articlesPlugin = new Elysia({
 					}),
 				},
 			)
-			.guard({
-				auth: true,
-				detail: {
-					security: [{ tokenAuth: [] }],
-					description: "Authentication required",
-				},
-			})
 			.post(
 				"/:slug/favorite",
 				async ({ params: { slug }, auth: { currentUserId } }) => {
