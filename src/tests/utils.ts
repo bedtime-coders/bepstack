@@ -209,6 +209,7 @@ export async function resetDb(options: { verbose?: boolean } = {}) {
 		`);
 
 		if (options.verbose) {
+			// biome-ignore lint/suspicious/noConsole: we want to log this
 			console.log(`✅ Database reset: truncated ${tableNames.length} tables`);
 		}
 	} catch (error) {
