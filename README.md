@@ -21,6 +21,12 @@ Including:
 
 This project demonstrates the stack in action via a [RealWorld](https://github.com/gothinkster/realworld) example.
 
+## Environment Configuration
+
+Production and shared environment variables are defined in `src/core/env.ts`.
+
+Test-specific environment variables are now defined in `src/core/test-env.ts` and are only used by test scripts and test runners. This keeps test configuration isolated from production config.
+
 ## Development
 
 1. Install dependencies
