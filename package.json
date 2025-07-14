@@ -51,7 +51,7 @@
 		"radashi": "^12.6.0"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.0.6",
+		"@biomejs/biome": "^2.1.1",
 		"@types/bun": "^1.2.18",
 		"@types/newman": "^5.3.6",
 		"newman": "^6.2.1",
